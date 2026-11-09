@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-heading: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+body { font-family: var(--font-sans); }
+.font-heading { font-family: var(--font-heading); }
+.font-mono { font-family: var(--font-mono); }
+
+/* MapLibre popup styling matching the Blade layout */
+.maplibregl-popup { max-width: 320px !important; }
+.maplibregl-popup-content {
+  border-radius: 0.875rem;
+  padding: 0;
+  overflow: hidden;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.15);
+  border: 1px solid #e2e8f0;
+  background-color: #ffffff;
+  color: #0f172a;
+}
+.dark .maplibregl-popup-content {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgb(30 41 59);
+  background-color: rgb(15 23 42);
+  color: rgb(241 245 249);
+}
+.maplibregl-popup-close-button {
+  padding: 6px 10px;
+  color: #64748b;
+  font-size: 16px;
+  z-index: 20;
+  transition: color 0.15s ease;
+}
+.maplibregl-popup-close-button:hover { color: #0f172a; background-color: transparent; }
+.dark .maplibregl-popup-close-button { color: rgb(148 163 184); }
+.dark .maplibregl-popup-close-button:hover { color: rgb(241 245 249); }
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: #ffffff; }
+.dark .maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: rgb(15 23 42); }
+.maplibregl-popup-anchor-top .maplibregl-popup-tip { border-bottom-color: #ffffff; }
+.dark .maplibregl-popup-anchor-top .maplibregl-popup-tip { border-bottom-color: rgb(15 23 42); }
+.maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: #ffffff; }
+.dark .maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: rgb(15 23 42); }
+.maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: #ffffff; }
+.dark .maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: rgb(15 23 42); }
