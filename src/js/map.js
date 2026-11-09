@@ -40,7 +40,7 @@ const map = new maplibregl.Map({
 const customAttributionControl = new maplibregl.AttributionControl({
     compact: true,
     customAttribution: [
-        '<a href="https://historicengland.org.uk/listing/the-list/" target="_blank" rel="noopener noreferrer">Contains NHLE data &copy; Historic England</a>',
+        '<a href="https://historicengland.org.uk/listing/the-list/" target="_blank" rel="noopener noreferrer">Contains NHLE & HAR data &copy; Historic England</a>',
         '<a href="https://www.ordnancesurvey.co.uk/" target="_blank" rel="noopener noreferrer">Contains OS data &copy; Crown copyright &amp; database right</a>',
         '<a href="https://www.artscouncil.org.uk/supporting-arts-museums-and-libraries/uk-museum-accreditation-scheme" target="_blank" rel="noopener noreferrer">&copy; Arts Council England</a>'
     ]
@@ -79,8 +79,10 @@ const btnUseLocation        = document.getElementById('btn-use-location');
 const btnClearProximity     = document.getElementById('btn-clear-proximity');
 const proximityStatus       = document.getElementById('proximity-status');
 
+// Layer Checkboxes
 const chkListedBuildings    = document.getElementById('layer-listed-buildings');
 const chkScheduledMonuments = document.getElementById('layer-scheduled-monuments');
+const chkHeritageAtRisk     = document.getElementById('layer-heritage-at-risk');
 const heStatusEl            = document.getElementById('he-status');
 
 let proximityOrigin = null;
@@ -105,7 +107,7 @@ if (!urlParams.get('county')) {
 }
 if (urlParams.get('query') && searchInput) searchInput.value = urlParams.get('query');
 
-// Distance helper (Haversine formula in KM)
+// Haversine Distance helper (KM)
 function getDistanceKm(lat1, lon1, lat2, lon2) {
     const R = 6371;
     const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -185,10 +187,12 @@ async function loadCountyBoundary(osId, fitToBoundary = true) {
 
     const monSource = map.getSource('he-monuments-source');
     const bldSource = map.getSource('he-buildings-source');
+    const harSource = map.getSource('he-har-source');
     const musSource = map.getSource('museums-source');
     
     if (monSource) monSource.setData({ type: 'FeatureCollection', features: [] });
     if (bldSource) bldSource.setData({ type: 'FeatureCollection', features: [] });
+    if (harSource) harSource.setData({ type: 'FeatureCollection', features: [] });
     if (musSource) musSource.setData({ type: 'FeatureCollection', features: [] });
 
     if (!osId) {
@@ -375,7 +379,7 @@ function addLayers() {
         });
     }
 
-    // 3. Historic England Scheduled Monuments
+    // 3. Historic England Scheduled Monuments (Polygons)
     if (!map.getSource('he-monuments-source')) {
         map.addSource('he-monuments-source', {
             type: 'geojson',
@@ -395,7 +399,7 @@ function addLayers() {
         });
     }
 
-    // 4. Historic England Listed Buildings
+    // 4. Historic England Listed Buildings (Points)
     if (!map.getSource('he-buildings-source')) {
         map.addSource('he-buildings-source', {
             type: 'geojson',
@@ -414,7 +418,26 @@ function addLayers() {
         });
     }
 
-    // 5. Museums Layer
+    // 5. Historic England Heritage at Risk 2026 (Points)
+    if (!map.getSource('he-har-source')) {
+        map.addSource('he-har-source', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] }
+        });
+        map.addLayer({
+            id: 'he-har-circle',
+            type: 'circle',
+            source: 'he-har-source',
+            paint: {
+                'circle-color': '#9333ea', // Distinct purple
+                'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 3, 14, 7],
+                'circle-stroke-width': 1.5,
+                'circle-stroke-color': '#ffffff'
+            }
+        });
+    }
+
+    // 6. Museums Layers
     if (!map.getSource('museums-source')) {
         map.addSource('museums-source', {
             type: 'geojson',
@@ -552,13 +575,24 @@ const showHeritagePopup = (e, designation) => {
     if (!feature) return;
 
     const p = feature.properties || {};
-    const listEntry = p.ListEntry || p.LISTENTRY || p.list_entry || '';
-    const name = p.Name || p.NAME || designation;
+    const listEntry = p.ListEntry || p.LISTENTRY || p.list_entry || p.HeritageAtRiskID || p.HAR_ID || '';
+    const name = p.Name || p.NAME || p.SiteName || p.SITENAME || designation;
     const grade = p.Grade || p.GRADE || null;
-    const nhleUrl = p.Hyperlink || p.HYPERLINK || (listEntry ? `https://historicengland.org.uk/listing/the-list/list-entry/${listEntry}` : null);
+    const nhleUrl = p.Hyperlink || p.HYPERLINK || (listEntry && !String(listEntry).startsWith('HAR') ? `https://historicengland.org.uk/listing/the-list/list-entry/${listEntry}` : null);
     const parish = p.Parish || p.PARISH || p.CivilParish || null;
     const ngr = p.NationalGridReference || p.NGR || p.GridRef || null;
+    const condition = p.Condition || p.CONDITION || null;
+    const priority = p.PriorityCategory || p.Priority || p.PRIORITY || null;
+
+    const isHAR = designation === 'Heritage at Risk';
     const isMonument = designation === 'Scheduled Monument';
+
+    let badgeClass = 'bg-amber-100 dark:bg-amber-950/70 text-amber-700 dark:text-amber-400';
+    if (isHAR) {
+        badgeClass = 'bg-purple-100 dark:bg-purple-950/70 text-purple-700 dark:text-purple-400';
+    } else if (isMonument) {
+        badgeClass = 'bg-red-100 dark:bg-red-950/70 text-red-700 dark:text-red-400';
+    }
 
     if (activePopup) activePopup.remove();
 
@@ -568,7 +602,7 @@ const showHeritagePopup = (e, designation) => {
             <div class="w-72 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 overflow-hidden font-sans" role="dialog">
                 <div class="px-4 pt-3.5 pb-2.5 pr-8 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/70 dark:bg-slate-800/40 flex items-start justify-between gap-2">
                     <div class="pr-2">
-                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase ${isMonument ? 'bg-red-100 dark:bg-red-950/70 text-red-700 dark:text-red-400' : 'bg-amber-100 dark:bg-amber-950/70 text-amber-700 dark:text-amber-400'}">
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase ${badgeClass}">
                             ${designation} ${grade ? `(${grade})` : ''}
                         </span>
                         <h4 class="mt-1.5 text-xs font-bold leading-snug line-clamp-2 text-slate-900 dark:text-slate-100">
@@ -580,9 +614,19 @@ const showHeritagePopup = (e, designation) => {
 
                 <div class="p-3.5 space-y-1.5 text-xs">
                     <div class="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
-                        <span class="text-slate-500 dark:text-slate-400">List Entry:</span>
+                        <span class="text-slate-500 dark:text-slate-400">List / HAR Entry:</span>
                         <span class="font-mono font-medium text-slate-800 dark:text-slate-200">${listEntry || '—'}</span>
                     </div>
+                    ${condition ? `
+                    <div class="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
+                        <span class="text-slate-500 dark:text-slate-400">Condition:</span>
+                        <span class="font-semibold text-rose-600 dark:text-rose-400">${condition}</span>
+                    </div>` : ''}
+                    ${priority ? `
+                    <div class="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
+                        <span class="text-slate-500 dark:text-slate-400">Priority:</span>
+                        <span class="font-mono font-medium text-slate-800 dark:text-slate-200">${priority}</span>
+                    </div>` : ''}
                     ${parish ? `
                     <div class="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
                         <span class="text-slate-500 dark:text-slate-400">Parish:</span>
@@ -614,15 +658,18 @@ const showHeritagePopup = (e, designation) => {
 async function syncHeritageData() {
     const monSource = map.getSource('he-monuments-source');
     const bldSource = map.getSource('he-buildings-source');
-    if (!monSource || !bldSource) return;
+    const harSource = map.getSource('he-har-source');
+    if (!monSource || !bldSource || !harSource) return;
 
     const wantBuildings = chkListedBuildings?.checked;
     const wantMonuments = chkScheduledMonuments?.checked;
+    const wantHAR       = chkHeritageAtRisk?.checked;
 
     if (!wantBuildings) bldSource.setData({ type: 'FeatureCollection', features: [] });
     if (!wantMonuments) monSource.setData({ type: 'FeatureCollection', features: [] });
+    if (!wantHAR) harSource.setData({ type: 'FeatureCollection', features: [] });
 
-    if (!wantBuildings && !wantMonuments) {
+    if (!wantBuildings && !wantMonuments && !wantHAR) {
         if (heStatusEl) heStatusEl.textContent = '';
         return;
     }
@@ -633,7 +680,7 @@ async function syncHeritageData() {
     activeHeritageAbortController = new AbortController();
     const signal = activeHeritageAbortController.signal;
 
-    if (heStatusEl) heStatusEl.textContent = 'Updating NHLE...';
+    if (heStatusEl) heStatusEl.textContent = 'Updating NHLE/HAR...';
 
     let queryBounds = map.getBounds();
     if (filterCounty?.value && activeCountyBounds && !activeCountyBounds.isEmpty()) {
@@ -648,7 +695,7 @@ async function syncHeritageData() {
         spatialReference: { wkid: 4326 }
     };
 
-    const fetchNHLE = async (layerId) => {
+    const fetchEsriGeoJSON = async (baseUrl) => {
         const params = new URLSearchParams({
             where: '1=1',
             geometry: JSON.stringify(envelopeObj),
@@ -662,8 +709,7 @@ async function syncHeritageData() {
             f: 'geojson'
         });
 
-        const url = `https://services-eu1.arcgis.com/ZOdPfBS3aqqDYPUQ/arcgis/rest/services/National_Heritage_List_for_England_NHLE_v02_VIEW/FeatureServer/${layerId}/query?${params.toString()}`;
-        const res = await fetch(url, { signal });
+        const res = await fetch(`${baseUrl}/query?${params.toString()}`, { signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return await res.json();
     };
@@ -672,30 +718,47 @@ async function syncHeritageData() {
         let total = 0;
         const promises = [];
 
+        // 1. Scheduled Monuments
         if (wantMonuments) {
             promises.push(
-                fetchNHLE(6).then(monData => {
-                    if (monData?.features) {
-                        monSource.setData(monData);
-                        total += monData.features.length;
-                    }
-                })
+                fetchEsriGeoJSON('https://services-eu1.arcgis.com/ZOdPfBS3aqqDYPUQ/arcgis/rest/services/National_Heritage_List_for_England_NHLE_v02_VIEW/FeatureServer/6')
+                    .then(monData => {
+                        if (monData?.features) {
+                            monSource.setData(monData);
+                            total += monData.features.length;
+                        }
+                    })
             );
         }
 
+        // 2. Listed Buildings
         if (wantBuildings) {
             promises.push(
-                fetchNHLE(0).then(bldData => {
-                    if (bldData?.features) {
-                        bldSource.setData(bldData);
-                        total += bldData.features.length;
-                    }
-                })
+                fetchEsriGeoJSON('https://services-eu1.arcgis.com/ZOdPfBS3aqqDYPUQ/arcgis/rest/services/National_Heritage_List_for_England_NHLE_v02_VIEW/FeatureServer/0')
+                    .then(bldData => {
+                        if (bldData?.features) {
+                            bldSource.setData(bldData);
+                            total += bldData.features.length;
+                        }
+                    })
+            );
+        }
+
+        // 3. Heritage at Risk (2026)
+        if (wantHAR) {
+            promises.push(
+                fetchEsriGeoJSON('https://services-eu1.arcgis.com/ZOdPfBS3aqqDYPUQ/arcgis/rest/services/HAR_2026_OTHR_WGS84/FeatureServer/0')
+                    .then(harData => {
+                        if (harData?.features) {
+                            harSource.setData(harData);
+                            total += harData.features.length;
+                        }
+                    })
             );
         }
 
         await Promise.all(promises);
-        if (heStatusEl) heStatusEl.textContent = `${total} NHLE records`;
+        if (heStatusEl) heStatusEl.textContent = `${total} HE records`;
     } catch (err) {
         if (err.name !== 'AbortError') {
             console.warn('Historic England query notice:', err);
@@ -836,11 +899,14 @@ map.on('load', () => {
     syncPalette();
     updateProximityCircle();
 
+    // Click Popups
     map.on('click', 'unclustered-point', showMuseumPopup);
     map.on('click', 'unclustered-hitbox', showMuseumPopup);
     map.on('click', 'he-monuments-fill', (e) => showHeritagePopup(e, 'Scheduled Monument'));
     map.on('click', 'he-buildings-circle', (e) => showHeritagePopup(e, 'Listed Building'));
+    map.on('click', 'he-har-circle', (e) => showHeritagePopup(e, 'Heritage at Risk'));
 
+    // Cluster Expansion Zoom
     map.on('click', 'clusters', async (e) => {
         const features = map.queryRenderedFeatures(e.point, { layers: ['clusters'] });
         if (!features.length) return;
@@ -855,7 +921,14 @@ map.on('load', () => {
         }
     });
 
-    const interactiveLayers = ['clusters', 'unclustered-hitbox', 'he-monuments-fill', 'he-buildings-circle'];
+    // Pointer Cursor Handling
+    const interactiveLayers = [
+        'clusters', 
+        'unclustered-hitbox', 
+        'he-monuments-fill', 
+        'he-buildings-circle', 
+        'he-har-circle'
+    ];
     interactiveLayers.forEach(layer => {
         map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
         map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
@@ -934,7 +1007,7 @@ filterCounty?.addEventListener('change', () => {
     });
 });
 
-[chkListedBuildings, chkScheduledMonuments].forEach(chk => {
+[chkListedBuildings, chkScheduledMonuments, chkHeritageAtRisk].forEach(chk => {
     chk?.addEventListener('change', () => {
         syncHeritageData();
     });

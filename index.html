@@ -66,12 +66,12 @@
                 Skip to interactive map
             </a>
 
-            <!-- Floating Control Panel -->
+            <!-- Floating Control / Filter Panel -->
             <div class="absolute top-4 left-4 z-10 w-84 max-h-[calc(100vh-5.5rem)] flex flex-col bg-white/95 dark:bg-slate-900/90 backdrop-blur-md rounded-2xl p-4 shadow-xl dark:shadow-2xl border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 transition-colors"
                  role="region" 
                  aria-label="Map filters and controls">
                 
-                <!-- Search -->
+                <!-- Search Input -->
                 <div class="relative">
                     <label for="map-search-input" class="sr-only">Search museum by name or postcode</label>
                     <input 
@@ -102,7 +102,7 @@
                 <!-- Expandable Filter Panel -->
                 <div id="advanced-filters-panel" class="hidden mt-3 pt-3 border-t border-slate-200 dark:border-slate-800 space-y-3 text-xs overflow-y-auto pr-1">
                     
-                    <!-- Proximity Radius -->
+                    <!-- Proximity Controls -->
                     <div class="p-3 bg-slate-50 dark:bg-slate-950/80 rounded-xl border border-slate-200 dark:border-slate-800/80 space-y-2.5">
                         <div class="flex items-center justify-between">
                             <span class="text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-400">Proximity Radius</span>
@@ -165,9 +165,17 @@
                                 Scheduled Monuments
                             </span>
                         </label>
+
+                        <label class="flex items-center gap-2 cursor-pointer select-none">
+                            <input type="checkbox" id="layer-heritage-at-risk" class="rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-purple-600 focus:ring-purple-500">
+                            <span class="text-xs text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                                <span class="w-2.5 h-2.5 rounded-full bg-purple-600 inline-block" aria-hidden="true"></span>
+                                Heritage at Risk (2026)
+                            </span>
+                        </label>
                     </div>
 
-                    <!-- Filters populated dynamically by JS -->
+                    <!-- Dropdowns populated dynamically by JS -->
                     <div>
                         <label for="filter-status" class="block text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Accreditation Status</label>
                         <select id="filter-status" class="w-full text-xs bg-slate-50 dark:bg-slate-950/80 rounded-lg border border-slate-300 dark:border-slate-800 p-2 text-slate-800 dark:text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 transition-all">
@@ -226,23 +234,43 @@
                 </div>
             </div>
 
-            <!-- Legend -->
-            <div class="absolute bottom-6 left-4 z-10 hidden sm:flex items-center gap-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-[11px] shadow-md text-slate-700 dark:text-slate-300"
+            <!-- Accessible Map Legend -->
+            <div id="map-status-legend"
+                 class="absolute bottom-6 left-4 z-10 hidden sm:flex flex-wrap items-center gap-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-[11px] shadow-md text-slate-700 dark:text-slate-300"
                  role="region" 
                  aria-label="Map status legend">
                 <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400">Legend:</span>
+                
                 <div class="flex items-center gap-1.5">
                     <span class="w-3 h-3 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[9px] font-bold" aria-hidden="true">&#x25CF;</span>
                     <span>Full Accreditation</span>
                 </div>
+                
                 <div class="flex items-center gap-1.5">
                     <span class="w-3 h-3 rounded-sm bg-amber-500 text-white flex items-center justify-center text-[9px] font-bold" aria-hidden="true">&#x25B2;</span>
                     <span>Provisional</span>
                 </div>
+                
                 <div class="flex items-center gap-1.5">
                     <span class="w-3 h-3 rounded-md bg-blue-500 text-white flex items-center justify-center text-[9px] font-bold" aria-hidden="true">&#x25A0;</span>
-                    <span>Other</span>
+                    <span>Other Museum</span>
                 </div>
+
+                <div class="flex items-center gap-1.5 border-l border-slate-200 dark:border-slate-700 pl-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-purple-600 inline-block" aria-hidden="true"></span>
+                    <span>At Risk (2026)</span>
+                </div>
+
+                <div class="flex items-center gap-1.5">
+                    <span class="w-2.5 h-2.5 rounded-sm bg-amber-500 inline-block" aria-hidden="true"></span>
+                    <span>Listed Building</span>
+                </div>
+
+                <div class="flex items-center gap-1.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" aria-hidden="true"></span>
+                    <span>Monument</span>
+                </div>
+
                 <div class="flex items-center gap-1.5 border-l border-slate-200 dark:border-slate-700 pl-2">
                     <span class="w-3 h-1.5 rounded-sm bg-indigo-500 inline-block" aria-hidden="true"></span>
                     <span>County Border</span>
