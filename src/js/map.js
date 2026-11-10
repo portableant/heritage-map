@@ -1,6 +1,7 @@
-import maplibregl from 'maplibre-gl';
+const maplibregl = window.maplibregl;
+// Configure the worker to use the official CDN bundle
 
-// Base URL handling for Vite / GitHub Pages
+// Base URL handling (resolves to '/' on heritage-map.museologi.st)
 const BASE_URL = import.meta.env.BASE_URL;
 const heLogoUrl = `${BASE_URL}images/Historic_England.svg`;
 
@@ -72,7 +73,7 @@ const chevronEl             = document.getElementById('filters-chevron');
 const filterStatus          = document.getElementById('filter-status');
 const filterCounty          = document.getElementById('filter-county');
 const filterRegion          = document.getElementById('filter-region');
-const activeCountyBadge     = document.getElementById('active-county-badge');
+const activeBoundaryBadge   = document.getElementById('active-boundary-badge');
 
 const filterRadius          = document.getElementById('filter-radius');
 const btnUseLocation        = document.getElementById('btn-use-location');
@@ -82,19 +83,20 @@ const proximityStatus       = document.getElementById('proximity-status');
 // Layer Checkboxes
 const chkListedBuildings    = document.getElementById('layer-listed-buildings');
 const chkScheduledMonuments = document.getElementById('layer-scheduled-monuments');
+const chkWorldHeritage      = document.getElementById('layer-world-heritage');
 const chkHeritageAtRisk     = document.getElementById('layer-heritage-at-risk');
 const heStatusEl            = document.getElementById('he-status');
 
 let proximityOrigin = null;
-let activeCountyBounds = null;
+let activeBoundaryBounds = null; // Active constraint bounds (County or Region)
 let allMuseums = [];
 let currentGeoJson = { type: 'FeatureCollection', features: [] };
-const countyGeoJsonCache = {};
+const boundaryGeoJsonCache = {};
 let activeHeritageAbortController = null;
 let fetchTimeout = null;
 
 // Parse Initial URL State
-if (!urlParams.get('county')) {
+if (!urlParams.get('county') && !urlParams.get('region')) {
     if (urlParams.get('near_lat') && urlParams.get('near_lng')) {
         proximityOrigin = {
             lat: parseFloat(urlParams.get('near_lat')),
@@ -181,24 +183,32 @@ function computeGeoJSONBounds(geojson) {
     return bounds;
 }
 
-async function loadCountyBoundary(osId, fitToBoundary = true) {
-    const source = map.getSource('county-boundary-source');
-    if (!source) return;
-
+// Clear all active layers immediately
+function clearDynamicDataSources() {
     const monSource = map.getSource('he-monuments-source');
     const bldSource = map.getSource('he-buildings-source');
+    const whsSource = map.getSource('he-whs-source');
     const harSource = map.getSource('he-har-source');
     const musSource = map.getSource('museums-source');
     
     if (monSource) monSource.setData({ type: 'FeatureCollection', features: [] });
     if (bldSource) bldSource.setData({ type: 'FeatureCollection', features: [] });
+    if (whsSource) whsSource.setData({ type: 'FeatureCollection', features: [] });
     if (harSource) harSource.setData({ type: 'FeatureCollection', features: [] });
     if (musSource) musSource.setData({ type: 'FeatureCollection', features: [] });
+}
+
+// 1. County Boundary Loader
+async function loadCountyBoundary(osId, fitToBoundary = true) {
+    const source = map.getSource('county-boundary-source');
+    if (!source) return;
+
+    clearDynamicDataSources();
 
     if (!osId) {
-        activeCountyBounds = null;
+        activeBoundaryBounds = null;
         source.setData({ type: 'FeatureCollection', features: [] });
-        if (activeCountyBadge) activeCountyBadge.classList.add('hidden');
+        if (activeBoundaryBadge) activeBoundaryBadge.classList.add('hidden');
         scheduleFetch(50);
         syncHeritageData();
         return;
@@ -211,34 +221,90 @@ async function loadCountyBoundary(osId, fitToBoundary = true) {
     const selectedOption = filterCounty.options[filterCounty.selectedIndex];
     const countyLabel = selectedOption ? selectedOption.textContent : 'County';
 
-    if (activeCountyBadge) {
-        activeCountyBadge.textContent = countyLabel;
-        activeCountyBadge.classList.remove('hidden');
+    if (activeBoundaryBadge) {
+        activeBoundaryBadge.textContent = countyLabel;
+        activeBoundaryBadge.classList.remove('hidden');
     }
 
     try {
-        let data = countyGeoJsonCache[osId];
+        let data = boundaryGeoJsonCache[`county_${osId}`];
         if (!data) {
             const response = await fetch(`${BASE_URL}os_geo_json/${encodeURIComponent(osId)}.geojson`);
             if (!response.ok) throw new Error(`County GeoJSON not found: ${osId}`);
             data = await response.json();
-            countyGeoJsonCache[osId] = data;
+            boundaryGeoJsonCache[`county_${osId}`] = data;
         }
 
         source.setData(data);
-        activeCountyBounds = computeGeoJSONBounds(data);
+        activeBoundaryBounds = computeGeoJSONBounds(data);
 
-        if (fitToBoundary && !activeCountyBounds.isEmpty()) {
-            map.fitBounds(activeCountyBounds, { padding: 50, duration: 600 });
+        if (fitToBoundary && !activeBoundaryBounds.isEmpty()) {
+            map.fitBounds(activeBoundaryBounds, { padding: 50, duration: 600 });
         } else {
             scheduleFetch(50);
             syncHeritageData();
         }
     } catch (err) {
         console.warn('Unable to load County GeoJSON boundary:', err);
-        activeCountyBounds = null;
+        activeBoundaryBounds = null;
         source.setData({ type: 'FeatureCollection', features: [] });
-        if (activeCountyBadge) activeCountyBadge.classList.add('hidden');
+        if (activeBoundaryBadge) activeBoundaryBadge.classList.add('hidden');
+        scheduleFetch(50);
+        syncHeritageData();
+    }
+}
+
+// 2. Region Boundary Loader
+async function loadRegionBoundary(osId, fitToBoundary = true) {
+    const source = map.getSource('region-boundary-source');
+    if (!source) return;
+
+    clearDynamicDataSources();
+
+    if (!osId) {
+        activeBoundaryBounds = null;
+        source.setData({ type: 'FeatureCollection', features: [] });
+        if (activeBoundaryBadge) activeBoundaryBadge.classList.add('hidden');
+        scheduleFetch(50);
+        syncHeritageData();
+        return;
+    }
+
+    proximityOrigin = null;
+    if (filterRadius) filterRadius.value = "";
+    updateProximityCircle();
+
+    const selectedOption = filterRegion.options[filterRegion.selectedIndex];
+    const regionLabel = selectedOption ? selectedOption.textContent : 'Region';
+
+    if (activeBoundaryBadge) {
+        activeBoundaryBadge.textContent = regionLabel;
+        activeBoundaryBadge.classList.remove('hidden');
+    }
+
+    try {
+        let data = boundaryGeoJsonCache[`region_${osId}`];
+        if (!data) {
+            const response = await fetch(`${BASE_URL}os_geo_json/${encodeURIComponent(osId)}.geojson`);
+            if (!response.ok) throw new Error(`Region GeoJSON not found: ${osId}`);
+            data = await response.json();
+            boundaryGeoJsonCache[`region_${osId}`] = data;
+        }
+
+        source.setData(data);
+        activeBoundaryBounds = computeGeoJSONBounds(data);
+
+        if (fitToBoundary && !activeBoundaryBounds.isEmpty()) {
+            map.fitBounds(activeBoundaryBounds, { padding: 50, duration: 600 });
+        } else {
+            scheduleFetch(50);
+            syncHeritageData();
+        }
+    } catch (err) {
+        console.warn('Unable to load Region GeoJSON boundary:', err);
+        activeBoundaryBounds = null;
+        source.setData({ type: 'FeatureCollection', features: [] });
+        if (activeBoundaryBadge) activeBoundaryBadge.classList.add('hidden');
         scheduleFetch(50);
         syncHeritageData();
     }
@@ -320,11 +386,20 @@ function syncPalette() {
     if (map.getLayer('he-monuments-fill')) {
         map.setPaintProperty('he-monuments-fill', 'fill-color', dark ? '#ef4444' : '#dc2626');
     }
+    if (map.getLayer('he-whs-fill')) {
+        map.setPaintProperty('he-whs-fill', 'fill-color', dark ? '#059669' : '#10b981');
+    }
     if (map.getLayer('county-boundary-fill')) {
         map.setPaintProperty('county-boundary-fill', 'fill-color', dark ? '#6366f1' : '#4f46e5');
     }
     if (map.getLayer('county-boundary-line')) {
         map.setPaintProperty('county-boundary-line', 'line-color', dark ? '#818cf8' : '#4338ca');
+    }
+    if (map.getLayer('region-boundary-fill')) {
+        map.setPaintProperty('region-boundary-fill', 'fill-color', dark ? '#06b6d4' : '#0891b2');
+    }
+    if (map.getLayer('region-boundary-line')) {
+        map.setPaintProperty('region-boundary-line', 'line-color', dark ? '#22d3ee' : '#0e7490');
     }
 }
 
@@ -379,7 +454,35 @@ function addLayers() {
         });
     }
 
-    // 3. Historic England Scheduled Monuments (Polygons)
+    // 3. Region Boundary Layer
+    if (!map.getSource('region-boundary-source')) {
+        map.addSource('region-boundary-source', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] }
+        });
+        map.addLayer({
+            id: 'region-boundary-fill',
+            type: 'fill',
+            source: 'region-boundary-source',
+            paint: {
+                'fill-color': dark ? '#06b6d4' : '#0891b2',
+                'fill-opacity': dark ? 0.08 : 0.05
+            }
+        });
+        map.addLayer({
+            id: 'region-boundary-line',
+            type: 'line',
+            source: 'region-boundary-source',
+            paint: {
+                'line-color': dark ? '#22d3ee' : '#0e7490',
+                'line-width': 2.5,
+                'line-opacity': 0.85,
+                'line-dasharray': [4, 2]
+            }
+        });
+    }
+
+    // 4. Historic England Scheduled Monuments (Polygons)
     if (!map.getSource('he-monuments-source')) {
         map.addSource('he-monuments-source', {
             type: 'geojson',
@@ -399,7 +502,27 @@ function addLayers() {
         });
     }
 
-    // 4. Historic England Listed Buildings (Points)
+    // 5. Historic England World Heritage Sites (Polygons - FeatureServer/10)
+    if (!map.getSource('he-whs-source')) {
+        map.addSource('he-whs-source', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] }
+        });
+        map.addLayer({
+            id: 'he-whs-fill',
+            type: 'fill',
+            source: 'he-whs-source',
+            paint: { 'fill-color': dark ? '#059669' : '#10b981', 'fill-opacity': 0.45 }
+        });
+        map.addLayer({
+            id: 'he-whs-stroke',
+            type: 'line',
+            source: 'he-whs-source',
+            paint: { 'line-color': '#047857', 'line-width': 2.5 }
+        });
+    }
+
+    // 6. Historic England Listed Buildings (Points)
     if (!map.getSource('he-buildings-source')) {
         map.addSource('he-buildings-source', {
             type: 'geojson',
@@ -411,14 +534,14 @@ function addLayers() {
             source: 'he-buildings-source',
             paint: {
                 'circle-color': '#f59e0b',
-                'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 2, 14, 5.5],
+                'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 2, 14, 5.5],
                 'circle-stroke-width': 1.25,
                 'circle-stroke-color': '#ffffff'
             }
         });
     }
 
-    // 5. Historic England Heritage at Risk 2026 (Points)
+    // 7. Historic England Heritage at Risk 2026 (Points)
     if (!map.getSource('he-har-source')) {
         map.addSource('he-har-source', {
             type: 'geojson',
@@ -437,7 +560,7 @@ function addLayers() {
         });
     }
 
-    // 6. Museums Layers
+    // 8. Museums Layers
     if (!map.getSource('museums-source')) {
         map.addSource('museums-source', {
             type: 'geojson',
@@ -546,6 +669,7 @@ const showMuseumPopup = (e) => {
                 <h4 id="popup-museum-title" class="font-heading font-bold text-slate-900 dark:text-slate-100 text-sm leading-snug">${props.name}</h4>
                 <div class="mt-2 text-xs text-slate-600 dark:text-slate-400">Status: <span class="font-medium text-slate-800 dark:text-slate-200">${props.status ?? 'N/A'}</span></div>
                 <div class="text-xs text-slate-600 dark:text-slate-400">County: <span class="font-medium text-slate-800 dark:text-slate-200">${props.county ?? 'N/A'}</span></div>
+                ${props.region ? `<div class="text-xs text-slate-600 dark:text-slate-400">Region: <span class="font-medium text-slate-800 dark:text-slate-200">${props.region}</span></div>` : ''}
                 ${props.postcode ? `<div class="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">${props.postcode}</div>` : ''}
                 
                 <div class="mt-3.5 pt-2.5 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
@@ -559,7 +683,7 @@ const showMuseumPopup = (e) => {
                         Directions
                     </a>
                     ${props.url ? `
-                    <a href="${props.url}" target="_blank" rel="noopener noreferrer"
+                    <a href="${props.url}" target="_blank" rel="noopener noreferrer" 
                        aria-label="View museum profile for ${props.name}"
                        class="inline-flex items-center text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 focus:outline-none focus:underline transition-colors">
                         View Record <span aria-hidden="true">&rarr;</span>
@@ -570,7 +694,7 @@ const showMuseumPopup = (e) => {
         .addTo(map);
 };
 
-// Popup for NHLE Monuments and Buildings
+// Popup for NHLE Monuments, Buildings, and World Heritage Sites
 const showHeritagePopup = (e, designation) => {
     const feature = e.features[0];
     if (!feature) return;
@@ -582,11 +706,13 @@ const showHeritagePopup = (e, designation) => {
     const nhleUrl = p.Hyperlink || p.HYPERLINK || (listEntry ? `https://historicengland.org.uk/listing/the-list/list-entry/${listEntry}` : null);
     const parish = p.Parish || p.PARISH || p.CivilParish || null;
     const ngr = p.NationalGridReference || p.NGR || p.GridRef || null;
-    const isMonument = designation === 'Scheduled Monument';
 
-    const badgeClass = isMonument
-        ? 'bg-red-100 dark:bg-red-950/70 text-red-700 dark:text-red-400'
-        : 'bg-amber-100 dark:bg-amber-950/70 text-amber-700 dark:text-amber-400';
+    let badgeClass = 'bg-amber-100 dark:bg-amber-950/70 text-amber-700 dark:text-amber-400';
+    if (designation === 'Scheduled Monument') {
+        badgeClass = 'bg-red-100 dark:bg-red-950/70 text-red-700 dark:text-red-400';
+    } else if (designation === 'World Heritage Site') {
+        badgeClass = 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-400';
+    }
 
     if (activePopup) activePopup.remove();
 
@@ -727,19 +853,22 @@ const showHarPopup = (e) => {
 // Historic England Query Engine
 async function syncHeritageData() {
     const monSource = map.getSource('he-monuments-source');
+    const whsSource = map.getSource('he-whs-source');
     const bldSource = map.getSource('he-buildings-source');
     const harSource = map.getSource('he-har-source');
-    if (!monSource || !bldSource || !harSource) return;
+    if (!monSource || !whsSource || !bldSource || !harSource) return;
 
     const wantBuildings = chkListedBuildings?.checked;
     const wantMonuments = chkScheduledMonuments?.checked;
+    const wantWHS       = chkWorldHeritage?.checked;
     const wantHAR       = chkHeritageAtRisk?.checked;
 
     if (!wantBuildings) bldSource.setData({ type: 'FeatureCollection', features: [] });
     if (!wantMonuments) monSource.setData({ type: 'FeatureCollection', features: [] });
+    if (!wantWHS) whsSource.setData({ type: 'FeatureCollection', features: [] });
     if (!wantHAR) harSource.setData({ type: 'FeatureCollection', features: [] });
 
-    if (!wantBuildings && !wantMonuments && !wantHAR) {
+    if (!wantBuildings && !wantMonuments && !wantWHS && !wantHAR) {
         if (heStatusEl) heStatusEl.textContent = '';
         return;
     }
@@ -752,13 +881,17 @@ async function syncHeritageData() {
 
     if (heStatusEl) heStatusEl.textContent = 'Updating HE layers...';
 
-    // Build the query envelope from visible map bounds
-    const viewBounds = map.getBounds();
+    // Prioritise current active boundary constraints if loaded, else use viewport bounds
+    let queryBounds = map.getBounds();
+    if (activeBoundaryBounds && !activeBoundaryBounds.isEmpty()) {
+        queryBounds = activeBoundaryBounds;
+    }
+
     const envelopeObj = {
-        xmin: viewBounds.getWest(),
-        ymin: viewBounds.getSouth(),
-        xmax: viewBounds.getEast(),
-        ymax: viewBounds.getNorth(),
+        xmin: queryBounds.getWest(),
+        ymin: queryBounds.getSouth(),
+        xmax: queryBounds.getEast(),
+        ymax: queryBounds.getNorth(),
         spatialReference: { wkid: 4326 }
     };
 
@@ -798,7 +931,20 @@ async function syncHeritageData() {
             );
         }
 
-        // 2. Listed Buildings (Points)
+        // 2. World Heritage Sites (Polygons - FeatureServer/10)
+        if (wantWHS) {
+            promises.push(
+                fetchEsriGeoJSON('https://services-eu1.arcgis.com/ZOdPfBS3aqqDYPUQ/arcgis/rest/services/National_Heritage_List_for_England_NHLE_v02_VIEW/FeatureServer/10')
+                    .then(whsData => {
+                        if (whsData?.features) {
+                            whsSource.setData(whsData);
+                            total += whsData.features.length;
+                        }
+                    })
+            );
+        }
+
+        // 3. Listed Buildings (Points)
         if (wantBuildings) {
             promises.push(
                 fetchEsriGeoJSON('https://services-eu1.arcgis.com/ZOdPfBS3aqqDYPUQ/arcgis/rest/services/National_Heritage_List_for_England_NHLE_v02_VIEW/FeatureServer/0')
@@ -811,7 +957,7 @@ async function syncHeritageData() {
             );
         }
 
-        // 3. Heritage at Risk 2026
+        // 4. Heritage at Risk 2026
         if (wantHAR) {
             promises.push(
                 fetchEsriGeoJSON('https://services-eu1.arcgis.com/ZOdPfBS3aqqDYPUQ/arcgis/rest/services/HAR_2026_OTHR_WGS84/FeatureServer/0')
@@ -870,21 +1016,27 @@ function populateFilterDropdowns(features) {
         filterStatus?.appendChild(opt);
     });
 
-    counties.forEach((label, id) => {
-        const opt = document.createElement('option');
-        opt.value = id;
-        opt.textContent = label;
-        if (urlParams.get('county') === id) opt.selected = true;
-        filterCounty?.appendChild(opt);
-    });
+    // Sort counties alphabetically
+    Array.from(counties.entries())
+        .sort((a, b) => a[1].localeCompare(b[1]))
+        .forEach(([id, label]) => {
+            const opt = document.createElement('option');
+            opt.value = id;
+            opt.textContent = label;
+            if (urlParams.get('county') === String(id)) opt.selected = true;
+            filterCounty?.appendChild(opt);
+        });
 
-    regions.forEach((label, id) => {
-        const opt = document.createElement('option');
-        opt.value = id;
-        opt.textContent = label;
-        if (urlParams.get('region') === id) opt.selected = true;
-        filterRegion?.appendChild(opt);
-    });
+    // Sort regions alphabetically
+    Array.from(regions.entries())
+        .sort((a, b) => a[1].localeCompare(b[1]))
+        .forEach(([id, label]) => {
+            const opt = document.createElement('option');
+            opt.value = id;
+            opt.textContent = label;
+            if (urlParams.get('region') === String(id)) opt.selected = true;
+            filterRegion?.appendChild(opt);
+        });
 }
 
 function filterAndRenderPoints() {
@@ -897,11 +1049,11 @@ function filterAndRenderPoints() {
     const radiusVal = parseFloat(filterRadius?.value) || null;
 
     let north, south, east, west;
-    if (countyVal && activeCountyBounds && !activeCountyBounds.isEmpty()) {
-        north = activeCountyBounds.getNorth();
-        south = activeCountyBounds.getSouth();
-        east  = activeCountyBounds.getEast();
-        west  = activeCountyBounds.getWest();
+    if ((countyVal || regionVal) && activeBoundaryBounds && !activeBoundaryBounds.isEmpty()) {
+        north = activeBoundaryBounds.getNorth();
+        south = activeBoundaryBounds.getSouth();
+        east  = activeBoundaryBounds.getEast();
+        west  = activeBoundaryBounds.getWest();
     } else {
         const bounds = map.getBounds();
         north = Math.min(85, bounds.getNorth());
@@ -919,8 +1071,8 @@ function filterAndRenderPoints() {
 
         if (lat > north || lat < south || lng > east || lng < west) return false;
         if (statusVal && props.status !== statusVal) return false;
-        if (countyVal && props.county_os_id !== countyVal) return false;
-        if (regionVal && props.region_os_id !== regionVal) return false;
+        if (countyVal && String(props.county_os_id) !== String(countyVal)) return false;
+        if (regionVal && String(props.region_os_id) !== String(regionVal)) return false;
 
         if (proximityOrigin && radiusVal) {
             const dist = getDistanceKm(proximityOrigin.lat, proximityOrigin.lng, lat, lng);
@@ -970,6 +1122,7 @@ map.on('load', () => {
     map.on('click', 'unclustered-point', showMuseumPopup);
     map.on('click', 'unclustered-hitbox', showMuseumPopup);
     map.on('click', 'he-monuments-fill', (e) => showHeritagePopup(e, 'Scheduled Monument'));
+    map.on('click', 'he-whs-fill', (e) => showHeritagePopup(e, 'World Heritage Site'));
     map.on('click', 'he-buildings-circle', (e) => showHeritagePopup(e, 'Listed Building'));
     map.on('click', 'he-har-circle', showHarPopup);
 
@@ -993,6 +1146,7 @@ map.on('load', () => {
         'clusters', 
         'unclustered-hitbox', 
         'he-monuments-fill', 
+        'he-whs-fill',
         'he-buildings-circle', 
         'he-har-circle'
     ];
@@ -1005,6 +1159,8 @@ map.on('load', () => {
 
     if (filterCounty?.value) {
         loadCountyBoundary(filterCounty.value, true);
+    } else if (filterRegion?.value) {
+        loadRegionBoundary(filterRegion.value, true);
     } else {
         syncHeritageData();
     }
@@ -1071,23 +1227,48 @@ searchInput?.addEventListener('input', () => {
     scheduleFetch(300);
 });
 
+// County Boundary Selection Handler
 filterCounty?.addEventListener('change', () => {
     clearTimeout(fetchTimeout);
     if (activeHeritageAbortController) {
         activeHeritageAbortController.abort();
     }
+
+    // Reset region boundary if county is selected
+    if (filterRegion && filterCounty.value) {
+        filterRegion.value = '';
+        const regionSource = map.getSource('region-boundary-source');
+        if (regionSource) regionSource.setData({ type: 'FeatureCollection', features: [] });
+    }
+
     loadCountyBoundary(filterCounty.value, true);
     syncUrlParams();
 });
 
-[filterStatus, filterRegion].forEach(input => {
-    input?.addEventListener('change', () => {
-        syncUrlParams();
-        scheduleFetch(100);
-    });
+// Region Boundary Selection Handler
+filterRegion?.addEventListener('change', () => {
+    clearTimeout(fetchTimeout);
+    if (activeHeritageAbortController) {
+        activeHeritageAbortController.abort();
+    }
+
+    // Reset county boundary if region is selected
+    if (filterCounty && filterRegion.value) {
+        filterCounty.value = '';
+        const countySource = map.getSource('county-boundary-source');
+        if (countySource) countySource.setData({ type: 'FeatureCollection', features: [] });
+    }
+
+    loadRegionBoundary(filterRegion.value, true);
+    syncUrlParams();
 });
 
-[chkListedBuildings, chkScheduledMonuments, chkHeritageAtRisk].forEach(chk => {
+filterStatus?.addEventListener('change', () => {
+    syncUrlParams();
+    scheduleFetch(100);
+});
+
+[chkListedBuildings, chkScheduledMonuments, chkWorldHeritage, chkHeritageAtRisk].forEach(chk => {
     chk?.addEventListener('change', () => {
         syncHeritageData();
     });
