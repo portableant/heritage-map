@@ -1,66 +1,122 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-function parseCSVLine(text) {
-  const result = [];
-  let cur = '';
-  let inQuotes = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (c === '"') {
-      if (inQuotes && text[i + 1] === '"') {
-        cur += '"';
-        i++;
+function parseCSV(filePath) {
+  const text = fs.readFileSync(filePath, 'utf8');
+  const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
+  if (lines.length === 0) return [];
+
+  const parseRow = (line) => {
+    const row = [];
+    let cur = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (c === ',' && !inQuotes) {
+        row.push(cur.trim());
+        cur = '';
       } else {
-        inQuotes = !inQuotes;
+        cur += c;
       }
-    } else if (c === ',' && !inQuotes) {
-      result.push(cur.trim());
-      cur = '';
-    } else {
-      cur += c;
     }
-  }
-  result.push(cur.trim());
-  return result;
+    row.push(cur.trim());
+    return row;
+  };
+
+  const headers = parseRow(lines[0]);
+  return lines.slice(1).map(line => {
+    const values = parseRow(line);
+    const obj = {};
+    headers.forEach((h, idx) => {
+      obj[h] = values[idx] !== undefined ? values[idx] : '';
+    });
+    return obj;
+  });
 }
 
-// 1. Resolve CSV path from public/csv/
-const csvPath = path.resolve('public', 'csv', 'accredited_augmented_with_os.csv');
-
-if (!fs.existsSync(csvPath)) {
-  console.error(`Error: CSV file not found at ${csvPath}`);
-  process.exit(1);
+function resolveFile(filename) {
+  const publicPath = path.resolve('public', 'csv', filename);
+  if (fs.existsSync(publicPath)) return publicPath;
+  const rootPath = path.resolve(filename);
+  if (fs.existsSync(rootPath)) return rootPath;
+  throw new Error(`Could not locate ${filename} in public/csv/ or project root.`);
 }
 
-const csvRaw = fs.readFileSync(csvPath, 'utf8');
-const lines = csvRaw.split(/\r?\n/).filter(line => line.trim().length > 0);
-const headers = parseCSVLine(lines[0]);
+const museumsPath = resolveFile('export-13-accredited-museums.csv');
+const countiesPath = resolveFile('ordnance-survey-counties-2026-11-10.csv');
+const regionsPath = resolveFile('ordnance-survey-regions-2026-11-10.csv');
 
+const rawMuseums = parseCSV(museumsPath);
+const rawCounties = parseCSV(countiesPath);
+const rawRegions = parseCSV(regionsPath);
+
+// Index Regions by ID (1-10) and by Os id (41421-41431)
+const regionsById = new Map();
+const regionsByOsId = new Map();
+for (const r of rawRegions) {
+  const regObj = {
+    id: parseInt(r['ID'], 10),
+    os_id: r['Os id'],
+    label: r['Label'],
+    slug: r['Slug']
+  };
+  if (r['ID']) regionsById.set(r['ID'], regObj);
+  if (r['Os id']) regionsByOsId.set(r['Os id'], regObj);
+}
+
+// Index Counties by ID
+const countiesById = new Map();
+for (const c of rawCounties) {
+  const regId = c['Region'];
+  const region = regionsById.get(regId) || null;
+  countiesById.set(c['ID'], {
+    id: parseInt(c['ID'], 10),
+    os_id: c['Os id'],
+    label: c['Label'],
+    slug: c['Slug'],
+    region_id: regId,
+    region: region
+  });
+}
+
+// Build GeoJSON Features
 const features = [];
+let skippedNoCoords = 0;
 
-for (let i = 1; i < lines.length; i++) {
-  const values = parseCSVLine(lines[i]);
-  const row = {};
-  headers.forEach((h, idx) => { row[h] = values[idx] || ''; });
+for (const m of rawMuseums) {
+  const lat = parseFloat(m['Latitude']);
+  const lng = parseFloat(m['Longitude']);
 
-  const lat = parseFloat(row['Latitude']);
-  const lng = parseFloat(row['longitude']);
-  if (isNaN(lat) || isNaN(lng)) continue;
+  if (isNaN(lat) || isNaN(lng)) {
+    skippedNoCoords++;
+    continue;
+  }
 
-  const statusCode = row['Status code'];
+  const statusCode = m['Status code'];
   const statusLabel = statusCode === '1' ? 'Full' : statusCode === '2' ? 'Provisional' : (statusCode || 'Unknown');
 
-  const osCounty = row['os_county_name'] || null;
-  const osDistrict = row['os_district_name'] || null;
-  const osCountyCode = row['os_county_code'] || '';
-  const osDistrictCode = row['os_district_code'] || null;
+  // County resolution
+  const countyData = m['County'] ? countiesById.get(m['County']) : null;
+  const countyName = countyData ? countyData.label : null;
+  const countyOsId = countyData ? countyData.os_id : null;
+  const countySlug = countyData ? countyData.slug : null;
 
-  const countyName = osCounty || osDistrict || row['County'] || null;
-  
-  // Safe prefix check for placeholder unitary county codes (E99999999 / W99999999)
-  const isGenericCounty = osCountyCode.startsWith('E99999999') || osCountyCode.startsWith('W99999999');
-  const countyOsId = (!isGenericCounty && osCountyCode) ? osCountyCode : (osDistrictCode || row['County'] || null);
+  // Region resolution: from county join first, fallback to direct museum Os region id
+  let regionData = countyData ? countyData.region : null;
+  if (!regionData && m['Os region id']) {
+    regionData = regionsByOsId.get(m['Os region id']) || null;
+  }
+
+  const regionName = regionData ? regionData.label : null;
+  const regionOsId = regionData ? regionData.os_id : (m['Os region id'] || null);
+  const regionSlug = regionData ? regionData.slug : null;
 
   features.push({
     type: 'Feature',
@@ -69,30 +125,39 @@ for (let i = 1; i < lines.length; i++) {
       coordinates: [lng, lat]
     },
     properties: {
-      id: parseInt(row['ID'], 10) || row['ID'],
-      name: row['Name'] || null,
+      id: parseInt(m['ID'], 10) || m['ID'],
+      name: m['Name'] || null,
       status: statusLabel,
       status_code: parseInt(statusCode, 10) || null,
-      accreditation_number: row['Accreditation number'] || null,
-      url: row['official website'] || null,
-      postcode: row['postcode'] || null,
+      accreditation_number: m['Accreditation number'] || null,
+      slug: m['Slug'] || null,
+      postcode: m['Postcode'] || null,
+      address: m['Address'] || null,
       county: countyName,
+      county_id: m['County'] ? parseInt(m['County'], 10) : null,
       county_os_id: countyOsId,
-      district: osDistrict,
-      district_os_id: osDistrictCode,
-      region_os_id: row['Os region id'] || null,
-      museum_type: row['Museum type'] || null,
-      slug: row['Slug'] || null,
-      wikidata_id: row['wikidata_id'] || null
+      county_slug: countySlug,
+      region: regionName,
+      region_os_id: regionOsId,
+      region_slug: regionSlug,
+      museum_type: m['Museum type'] || null,
+      wikidata_id: m['Wikidata id'] || null,
+      isni: m['Isni'] || null
     }
   });
 }
 
-// 2. Output destination: public/data/museums.geojson
 const outDir = path.resolve('public', 'data');
 fs.mkdirSync(outDir, { recursive: true });
-
 const outPath = path.join(outDir, 'museums.geojson');
-fs.writeFileSync(outPath, JSON.stringify({ type: 'FeatureCollection', features }, null, 2));
 
-console.log(`Successfully built museums.geojson with ${features.length} features at ${outPath}`);
+const geojson = {
+  type: 'FeatureCollection',
+  features: features
+};
+
+fs.writeFileSync(outPath, JSON.stringify(geojson, null, 2), 'utf8');
+
+console.log(`Generated: ${outPath}`);
+console.log(`Total mapped features: ${features.length}`);
+console.log(`Skipped without coordinates: ${skippedNoCoords}`);

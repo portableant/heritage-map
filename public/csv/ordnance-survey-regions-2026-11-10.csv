@@ -1,0 +1,11 @@
+﻿ID,"Os id",Uri,Label,Slug,Type,Lat,Lon,Easting,Northing,Valid,"Created by","Updated by","Created at","Updated at"
+1,41425,http://data.ordnancesurvey.co.uk/id/7000000000041425,Eastern,eastern,"European Region",52.22270000,0.48980600,261197,570166,1,56,,"2013-06-17 14:52:14",
+2,41423,http://data.ordnancesurvey.co.uk/id/7000000000041423,"East Midlands",east-midlands,"European Region",52.79680000,-0.67073800,322968,489723,1,56,,"2026-08-27 13:48:06",
+3,41422,http://data.ordnancesurvey.co.uk/id/7000000000041422,"North East",north-east,"European Region",55.13160000,-2.06675000,581916,395842,1,56,,"2026-08-27 13:48:06",
+4,41431,http://data.ordnancesurvey.co.uk/id/7000000000041431,"North West",north-west,"European Region",54.06780000,-2.68697000,463756,355139,1,56,,"2026-08-27 13:48:06",
+5,41421,http://data.ordnancesurvey.co.uk/id/7000000000041421,"South East",south-east,"European Region",51.45090000,-0.99310600,172911,470064,1,56,,"2026-08-27 13:48:06",
+6,41427,http://data.ordnancesurvey.co.uk/id/7000000000041427,"South West",south-west,"European Region",51.05260000,-2.94932000,128564,333557,1,56,,"2026-08-27 13:48:06",
+7,41424,http://data.ordnancesurvey.co.uk/id/7000000000041424,Wales,wales,"European Region",52.36730000,-3.61278000,275582,290288,1,56,,"2026-08-27 13:48:06",
+8,41426,http://data.ordnancesurvey.co.uk/id/7000000000041426,"West Midlands",west-midlands,"European Region",52.52690000,-2.19627000,292129,386781,1,56,,"2026-08-27 13:48:06",
+9,41430,http://data.ordnancesurvey.co.uk/id/7000000000041430,"Yorkshire and the Humber",yorkshire-and-the-humber,"European Region",53.93320000,-1.16544000,448891,454891,1,56,,"2026-08-27 13:48:06",
+10,41428,http://data.ordnancesurvey.co.uk/id/7000000000041428,London,london,"European Region",51.48960000,-0.13450500,178392,529614,1,56,,"2026-08-27 13:48:06",
