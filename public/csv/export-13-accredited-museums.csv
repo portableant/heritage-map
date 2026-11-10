@@ -746,7 +746,7 @@ ID,Name,Slug,Accreditation number,District,County,Os region id,Sovereignty,Statu
 746,Royal Signals Museum,royal-signals-museum,821,,17,41427,1,1,"Blandford Camp,Blandford Forum, DT11 8RH",DT11 8RH,Q7374827,,,,50.8680000,-2.1250000,,I,,,2026-09-01 20:13:39,2026-09-01 20:13:39
 747,The Rifles (Berkshire and Wiltshire) Museum,the-rifles-berkshire-and-wiltshire-museum,823,254,80,41427,1,1,"The Wardrobe, 58 The Close, Salisbury SP1 2EX",SP1 2EX,Q55635510,,,,51.0662000,-1.7996000,,I,,,2026-09-01 20:13:39,2026-09-01 20:13:39
 748,Royal Albert Memorial Museum & Art Gallery,royal-albert-memorial-museum-art-gallery,838,183,26,41427,1,1,"Queen Street, Exeter EX4 3RX",EX4 3RX,Q7373646,,,,50.7251111,-3.5323056,,LA,,,2026-09-01 20:13:39,2026-09-01 20:13:39
-749,Fleet Air Arm Museum,fleet-air-arm-museum,843,,,41427,1,1,,,Q5458379,,,,51.0150,2.6368,,N,,,2026-09-01 20:13:39,2026-09-01 20:13:39
+749,Fleet Air Arm Museum,fleet-air-arm-museum,843,,,41427,1,1,,,Q5458379,,,,51.01179,-2.64673,,N,,,2026-09-01 20:13:39,2026-09-01 20:13:39
 750,Glastonbury Abbey,glastonbury-abbey,844,,12,41427,1,1,,BA6 9EL,Q544113,,,,51.1467060,-2.7150060,,I,,,2026-09-01 20:13:39,2026-09-01 20:13:39
 751,The Wilson,the-wilson,845,170,24,41427,1,1,"Clarence Street, Cheltenham GL50 3JT",GL50 3JT,Q5090184,,,,51.9018000,-2.0794400,,LA,,,2026-09-01 20:13:39,2026-09-01 20:13:39
 752,Holst Victorian House,holst-victorian-house,847,170,24,41427,1,1,"4 Clarence Road, Cheltenham GL52 2AY",GL52 2AY,Q113369862,,,,51.9039880,-2.0704990,,I,,,2026-09-01 20:13:39,2026-09-01 20:13:39
@@ -870,7 +870,7 @@ ID,Name,Slug,Accreditation number,District,County,Os region id,Sovereignty,Statu
 870,Coleton Fishacre,coleton-fishacre,1968,182,26,41427,1,1,"Kingswear, Dartmouth TQ6 0EQ",TQ6 0EQ,Q776978,,,,50.3467000,-3.5347700,,NT,,,2026-09-01 20:13:39,2026-09-01 20:13:39
 871,Killerton House,killerton-house,1969,,26,41427,1,1,,,Q137843733,,,,50.7945610,-3.4632950,,NT,,,2026-09-01 20:13:39,2026-09-01 20:13:39
 872,Knightshayes Court,knightshayes-court,1970,187,26,41427,1,1,"Bolham, Tiverton EX16 7RQ",EX16 7RQ,Q6531636,,,,50.9292000,-3.4794400,,NT,,,2026-09-01 20:13:39,2026-09-01 20:13:39
-873,Overbeck-Museum,overbeck-museum,1972,,,41427,1,1,"Alte Hafenstraße 30, 28757 Bremen",,Q2042287,,,,50.2232,3.7843,,NT,,,2026-09-01 20:13:39,2026-09-01 20:13:39
+873,Overbeck-Museum,overbeck-museum,1972,,,41427,1,1,"Alte Hafenstraße 30, 28757 Bremen",,Q2042287,,,,50.22304,-3.78330,,NT,,,2026-09-01 20:13:39,2026-09-01 20:13:39
 874,Saltram House,saltram-house,1973,,26,41427,1,1,,,Q137843588,,,,50.3809550,-4.0909800,,NT,,,2026-09-01 20:13:39,2026-09-01 20:13:39
 875,Chedworth Roman Villa,chedworth-roman-villa,1974,169,24,41427,1,1,,GL54 3LJ,Q5089233,,,,51.8198000,-1.9246400,,NT,,,2026-09-01 20:13:39,2026-09-01 20:13:39
 876,Frome Museum,frome-museum,1985,,12,41427,1,1,"1 North Parade, Frome BA11 1AT",BA11 1AT,Q5505735,,,,51.2328000,-2.3191000,,I,,,2026-09-01 20:13:39,2026-09-01 20:13:39
