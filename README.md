@@ -10,4 +10,4 @@ This repository contains a quick maplibre/tailwind [demo](https://heritage-map.m
     * Listed Buildings WFS layer
 * GeoJson boundaries tied to old OpenData identifiers and rendered by me in 2015 for use in finds.org.uk
 
-This standalone demo is part of something bigger I have built to keep my skills sharp, and that will be released 3rd week of November probably. It is partially inspired by the work @rainer and co have done on Peripleo and draws on work that came out of a funded Open University/Historic England workshop and the Open Data work that was part of HE's digital strategy. 
+This standalone demo is part of something bigger I have built to keep my skills sharp, and that will be released 3rd week of November probably. It is partially inspired by the work @rsimon and co have done on @Peripleo and draws on work that came out of a funded Open University/Historic England workshop and the Open Data work that was part of HE's @historicengland digital strategy. 
