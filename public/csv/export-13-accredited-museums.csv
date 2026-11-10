@@ -575,7 +575,7 @@ ID,Name,Slug,Accreditation number,District,County,Os region id,Sovereignty,Statu
 575,Potters Bar Museum,potters-bar-museum,2093,19,105,41425,1,1,"Wyllyotts Centre, Wyllyotts Place, Darkes Lane, Potters Bar, Herts, EN6 2HN",EN6 2HN,Q29016276,,,,51.6962395,-0.1936336,,I,,,2026-09-01 20:13:39,2026-09-01 20:13:39
 576,Felixstowe Museum,felixstowe-museum,2105,123,19,41425,1,1,"Viewpoint Road, Felixstowe IP11 3TW",IP11 3TW,Q113360609,,,,51.9394370,1.3205190,,I,,,2026-09-01 20:13:39,2026-09-01 20:13:39
 577,Museum of Power,museum-of-power,2122,158,23,41425,1,1,"Hatfield Road, Langford, Maldon, Essex, CM9 6QA",CM9 6QA,Q6940997,,,,51.7509000,0.6549000,,I,,,2026-09-01 20:13:39,2026-09-01 20:13:39
-578,Polar Museum,polar-museum,2138,,,41425,1,1,,,Q1727268,,,,69.6522070,18.9634270,,U,,,2026-09-01 20:13:39,2026-09-01 20:13:39
+578,Polar Museum,polar-museum,2138,,,41425,1,1,,,Q1727268,,,,52.19845,0.12627,,U,,,2026-09-01 20:13:39,2026-09-01 20:13:39
 579,Imperial War Museum Duxford,imperial-war-museum-duxford,2153,2,1,41425,1,1,"Duxford Airfield, Cambridge CB22 4QR",CB22 4QR,Q1758240,,,,52.0930556,0.1294444,,N,,,2026-09-01 20:13:39,2026-09-01 20:13:39
 580,Combined Military Services Museum,combined-military-services-museum,2158,158,23,41425,1,1,"Station Road, Maldon, Essex, CM9 4LQ",CM9 4LQ,Q5150875,,,,51.7349000,0.6832000,,I,,,2026-09-01 20:13:39,2026-09-01 20:13:39
 581,Warner Textile Archive,warner-textile-archive,2175,164,23,41425,1,1,"Warners Mill, Silks Way, Braintree, CM7 3GB",CM7 3GB,Q7969761,,,,51.8760800,0.5518970,,I,,,2026-09-01 20:13:39,2026-09-01 20:13:39
@@ -746,7 +746,7 @@ ID,Name,Slug,Accreditation number,District,County,Os region id,Sovereignty,Statu
 746,Royal Signals Museum,royal-signals-museum,821,,17,41427,1,1,"Blandford Camp,Blandford Forum, DT11 8RH",DT11 8RH,Q7374827,,,,50.8680000,-2.1250000,,I,,,2026-09-01 20:13:39,2026-09-01 20:13:39
 747,The Rifles (Berkshire and Wiltshire) Museum,the-rifles-berkshire-and-wiltshire-museum,823,254,80,41427,1,1,"The Wardrobe, 58 The Close, Salisbury SP1 2EX",SP1 2EX,Q55635510,,,,51.0662000,-1.7996000,,I,,,2026-09-01 20:13:39,2026-09-01 20:13:39
 748,Royal Albert Memorial Museum & Art Gallery,royal-albert-memorial-museum-art-gallery,838,183,26,41427,1,1,"Queen Street, Exeter EX4 3RX",EX4 3RX,Q7373646,,,,50.7251111,-3.5323056,,LA,,,2026-09-01 20:13:39,2026-09-01 20:13:39
-749,Fleet Air Arm Museum,fleet-air-arm-museum,843,,,41427,1,1,,,Q5458379,,,,-34.9360000,150.5550000,,N,,,2026-09-01 20:13:39,2026-09-01 20:13:39
+749,Fleet Air Arm Museum,fleet-air-arm-museum,843,,,41427,1,1,,,Q5458379,,,,51.0150,2.6368,,N,,,2026-09-01 20:13:39,2026-09-01 20:13:39
 750,Glastonbury Abbey,glastonbury-abbey,844,,12,41427,1,1,,BA6 9EL,Q544113,,,,51.1467060,-2.7150060,,I,,,2026-09-01 20:13:39,2026-09-01 20:13:39
 751,The Wilson,the-wilson,845,170,24,41427,1,1,"Clarence Street, Cheltenham GL50 3JT",GL50 3JT,Q5090184,,,,51.9018000,-2.0794400,,LA,,,2026-09-01 20:13:39,2026-09-01 20:13:39
 752,Holst Victorian House,holst-victorian-house,847,170,24,41427,1,1,"4 Clarence Road, Cheltenham GL52 2AY",GL52 2AY,Q113369862,,,,51.9039880,-2.0704990,,I,,,2026-09-01 20:13:39,2026-09-01 20:13:39
