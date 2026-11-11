@@ -3,6 +3,7 @@ const maplibregl = window.maplibregl;
 // Base URL handling (resolves to '/' on heritage-map.museologi.st)
 const BASE_URL = import.meta.env.BASE_URL;
 const heLogoUrl = `${BASE_URL}images/Historic_England.svg`;
+const cadwLogoUrl = `${BASE_URL}images/Cadw_logo_square.svg`;
 
 function isDarkMode() {
     return document.documentElement.classList.contains('dark');
@@ -187,19 +188,21 @@ function computeGeoJSONBounds(geojson) {
 
 // Clear all active layers immediately
 function clearDynamicDataSources() {
-    const monSource  = map.getSource('he-monuments-source');
-    const whsSource  = map.getSource('he-whs-source');
-    const bldSource  = map.getSource('he-buildings-source');
-    const harSource  = map.getSource('he-har-source');
-    const cadwSource = map.getSource('cadw-monuments-source');
-    const musSource  = map.getSource('museums-source');
+    const monSource     = map.getSource('he-monuments-source');
+    const whsSource     = map.getSource('he-whs-source');
+    const bldSource     = map.getSource('he-buildings-source');
+    const harSource     = map.getSource('he-har-source');
+    const cadwMonSource = map.getSource('cadw-monuments-source');
+    const cadwBldSource = map.getSource('cadw-buildings-source');
+    const musSource     = map.getSource('museums-source');
     
-    if (monSource)  monSource.setData({ type: 'FeatureCollection', features: [] });
-    if (whsSource)  whsSource.setData({ type: 'FeatureCollection', features: [] });
-    if (bldSource)  bldSource.setData({ type: 'FeatureCollection', features: [] });
-    if (harSource)  harSource.setData({ type: 'FeatureCollection', features: [] });
-    if (cadwSource) cadwSource.setData({ type: 'FeatureCollection', features: [] });
-    if (musSource)  musSource.setData({ type: 'FeatureCollection', features: [] });
+    if (monSource)     monSource.setData({ type: 'FeatureCollection', features: [] });
+    if (whsSource)     whsSource.setData({ type: 'FeatureCollection', features: [] });
+    if (bldSource)     bldSource.setData({ type: 'FeatureCollection', features: [] });
+    if (harSource)     harSource.setData({ type: 'FeatureCollection', features: [] });
+    if (cadwMonSource) cadwMonSource.setData({ type: 'FeatureCollection', features: [] });
+    if (cadwBldSource) cadwBldSource.setData({ type: 'FeatureCollection', features: [] });
+    if (musSource)     musSource.setData({ type: 'FeatureCollection', features: [] });
 }
 
 // 1. County Boundary Loader
@@ -588,34 +591,21 @@ function addLayers() {
         });
     }
 
-    // 8. Cadw Listed Buildings (Wales - WMS Layer from layer/660)
-    if (!map.getSource('cadw-buildings-wms-source')) {
-        map.addSource('cadw-buildings-wms-source', {
-            type: 'raster',
-            tiles: [
-                'https://datamap.gov.wales/geoserver/ows?' +
-                'SERVICE=WMS&' +
-                'VERSION=1.3.0&' +
-                'REQUEST=GetMap&' +
-                'LAYERS=inspire-wg:Cadw_ListedBuildings&' +
-                'CRS=EPSG:3857&' +
-                'BBOX={bbox-epsg-3857}&' +
-                'WIDTH=256&' +
-                'HEIGHT=256&' +
-                'FORMAT=image/png&' +
-                'TRANSPARENT=true'
-            ],
-            tileSize: 256
+    // 8. Cadw Listed Buildings (Wales - WFS GeoJSON Points) - Warm Amber/Brown #b45309
+    if (!map.getSource('cadw-buildings-source')) {
+        map.addSource('cadw-buildings-source', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] }
         });
         map.addLayer({
-            id: 'cadw-buildings-wms-layer',
-            type: 'raster',
-            source: 'cadw-buildings-wms-source',
-            layout: {
-                visibility: 'none' // Controlled by checkbox
-            },
+            id: 'cadw-buildings-circle',
+            type: 'circle',
+            source: 'cadw-buildings-source',
             paint: {
-                'raster-opacity': 0.95
+                'circle-color': '#b45309',
+                'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 2, 14, 5.5],
+                'circle-stroke-width': 1.25,
+                'circle-stroke-color': '#ffffff'
             }
         });
     }
@@ -872,6 +862,7 @@ const showCadwPopup = (e) => {
                         </h4>
                         ${nameCy ? `<div class="text-[11px] italic text-slate-500 dark:text-slate-400">${nameCy}</div>` : ''}
                     </div>
+                    <img src="${cadwLogoUrl}" alt="Cadw" class="h-6 w-auto shrink-0 object-contain mt-0.5 mr-2 rounded-sm" />
                 </div>
 
                 <div class="p-3.5 space-y-1.5 text-xs">
@@ -910,8 +901,11 @@ const showCadwPopup = (e) => {
         .addTo(map);
 };
 
-// Dedicated Popup for Cadw Listed Buildings (Wales - WMS GetFeatureInfo)
-const showCadwBuildingPopup = (e, feature) => {
+// Dedicated Popup for Cadw Listed Buildings (Wales - WFS GeoJSON)
+const showCadwBuildingPopup = (e) => {
+    const feature = e.features[0];
+    if (!feature) return;
+
     const p = feature.properties || {};
     const name = p.Name || p.Name_cy || 'Cadw Listed Building';
     const nameCy = p.Name_cy && p.Name_cy !== p.Name ? p.Name_cy : null;
@@ -938,6 +932,7 @@ const showCadwBuildingPopup = (e, feature) => {
                         </h4>
                         ${nameCy ? `<div class="text-[11px] italic text-slate-500 dark:text-slate-400">${nameCy}</div>` : ''}
                     </div>
+                    <img src="${cadwLogoUrl}" alt="Cadw" class="h-6 w-auto shrink-0 object-contain mt-0.5 mr-2 rounded-sm" />
                 </div>
 
                 <div class="p-3.5 space-y-1.5 text-xs">
@@ -1064,26 +1059,29 @@ const showHarPopup = (e) => {
 
 // Dynamic Heritage Layer Query Engine
 async function syncHeritageData() {
-    const monSource  = map.getSource('he-monuments-source');
-    const whsSource  = map.getSource('he-whs-source');
-    const bldSource  = map.getSource('he-buildings-source');
-    const harSource  = map.getSource('he-har-source');
-    const cadwSource = map.getSource('cadw-monuments-source');
+    const monSource     = map.getSource('he-monuments-source');
+    const whsSource     = map.getSource('he-whs-source');
+    const bldSource     = map.getSource('he-buildings-source');
+    const harSource     = map.getSource('he-har-source');
+    const cadwMonSource = map.getSource('cadw-monuments-source');
+    const cadwBldSource = map.getSource('cadw-buildings-source');
     if (!monSource || !whsSource || !bldSource || !harSource) return;
 
-    const wantBuildings = chkListedBuildings?.checked;
-    const wantMonuments = chkScheduledMonuments?.checked;
-    const wantWHS       = chkWorldHeritage?.checked;
-    const wantHAR       = chkHeritageAtRisk?.checked;
-    const wantCadw      = chkCadwMonuments?.checked;
+    const wantBuildings     = chkListedBuildings?.checked;
+    const wantMonuments     = chkScheduledMonuments?.checked;
+    const wantWHS           = chkWorldHeritage?.checked;
+    const wantHAR           = chkHeritageAtRisk?.checked;
+    const wantCadwMonuments = chkCadwMonuments?.checked;
+    const wantCadwBuildings = chkCadwBuildings?.checked;
 
-    if (!wantBuildings) bldSource.setData({ type: 'FeatureCollection', features: [] });
-    if (!wantMonuments) monSource.setData({ type: 'FeatureCollection', features: [] });
-    if (!wantWHS) whsSource.setData({ type: 'FeatureCollection', features: [] });
-    if (!wantHAR) harSource.setData({ type: 'FeatureCollection', features: [] });
-    if (!wantCadw && cadwSource) cadwSource.setData({ type: 'FeatureCollection', features: [] });
+    if (!wantBuildings)     bldSource.setData({ type: 'FeatureCollection', features: [] });
+    if (!wantMonuments)     monSource.setData({ type: 'FeatureCollection', features: [] });
+    if (!wantWHS)           whsSource.setData({ type: 'FeatureCollection', features: [] });
+    if (!wantHAR)           harSource.setData({ type: 'FeatureCollection', features: [] });
+    if (!wantCadwMonuments && cadwMonSource) cadwMonSource.setData({ type: 'FeatureCollection', features: [] });
+    if (!wantCadwBuildings && cadwBldSource) cadwBldSource.setData({ type: 'FeatureCollection', features: [] });
 
-    if (!wantBuildings && !wantMonuments && !wantWHS && !wantHAR && !wantCadw) {
+    if (!wantBuildings && !wantMonuments && !wantWHS && !wantHAR && !wantCadwMonuments && !wantCadwBuildings) {
         if (heStatusEl) heStatusEl.textContent = '';
         return;
     }
@@ -1134,16 +1132,16 @@ async function syncHeritageData() {
         return await res.json();
     };
 
-    const fetchCadwWFS = async () => {
+    const fetchCadwWFS = async (typeName, maxFeatures = '2000') => {
         const wfsParams = new URLSearchParams({
             service: 'WFS',
             version: '1.1.0',
             request: 'GetFeature',
-            typename: 'inspire-wg:Cadw_SAM',
+            typename: typeName,
             outputFormat: 'application/json',
             srsName: 'EPSG:4326',
             bbox: `${minLng},${minLat},${maxLng},${maxLat},EPSG:4326`,
-            maxFeatures: '2000'
+            maxFeatures: maxFeatures
         });
 
         const res = await fetch(`https://datamap.gov.wales/geoserver/ows?${wfsParams.toString()}`, { signal });
@@ -1155,7 +1153,7 @@ async function syncHeritageData() {
         let total = 0;
         const promises = [];
 
-        // 1. Scheduled Monuments (Polygons)
+        // 1. Scheduled Monuments (Polygons - NHLE)
         if (wantMonuments) {
             promises.push(
                 fetchEsriGeoJSON('https://services-eu1.arcgis.com/ZOdPfBS3aqqDYPUQ/arcgis/rest/services/National_Heritage_List_for_England_NHLE_v02_VIEW/FeatureServer/6')
@@ -1163,7 +1161,7 @@ async function syncHeritageData() {
             );
         }
 
-        // 2. World Heritage Sites (Polygons - FeatureServer/10)
+        // 2. World Heritage Sites (Polygons - NHLE FeatureServer/10)
         if (wantWHS) {
             promises.push(
                 fetchEsriGeoJSON('https://services-eu1.arcgis.com/ZOdPfBS3aqqDYPUQ/arcgis/rest/services/National_Heritage_List_for_England_NHLE_v02_VIEW/FeatureServer/10')
@@ -1171,7 +1169,7 @@ async function syncHeritageData() {
             );
         }
 
-        // 3. Listed Buildings (Points - Rust/Terracotta)
+        // 3. Listed Buildings (Points - NHLE, Rust/Terracotta)
         if (wantBuildings) {
             promises.push(
                 fetchEsriGeoJSON('https://services-eu1.arcgis.com/ZOdPfBS3aqqDYPUQ/arcgis/rest/services/National_Heritage_List_for_England_NHLE_v02_VIEW/FeatureServer/0')
@@ -1187,20 +1185,37 @@ async function syncHeritageData() {
             );
         }
 
-        // 5. Cadw Scheduled Monuments (Wales - WFS)
-        if (wantCadw && cadwSource) {
+        // 5. Cadw Scheduled Monuments (Wales - WFS GeoJSON)
+        if (wantCadwMonuments && cadwMonSource) {
             const intersectsWales = (minLng <= -2.6 && maxLng >= -5.5 && minLat <= 53.5 && maxLat >= 51.3);
             if (intersectsWales) {
                 promises.push(
-                    fetchCadwWFS().then(data => {
+                    fetchCadwWFS('inspire-wg:Cadw_SAM', '2000').then(data => {
                         if (data?.features) {
-                            cadwSource.setData(data);
+                            cadwMonSource.setData(data);
                             total += data.features.length;
                         }
                     })
                 );
             } else {
-                cadwSource.setData({ type: 'FeatureCollection', features: [] });
+                cadwMonSource.setData({ type: 'FeatureCollection', features: [] });
+            }
+        }
+
+        // 6. Cadw Listed Buildings (Wales - WFS GeoJSON Points)
+        if (wantCadwBuildings && cadwBldSource) {
+            const intersectsWales = (minLng <= -2.6 && maxLng >= -5.5 && minLat <= 53.5 && maxLat >= 51.3);
+            if (intersectsWales) {
+                promises.push(
+                    fetchCadwWFS('inspire-wg:Cadw_ListedBuildings', '4000').then(data => {
+                        if (data?.features) {
+                            cadwBldSource.setData(data);
+                            total += data.features.length;
+                        }
+                    })
+                );
+            } else {
+                cadwBldSource.setData({ type: 'FeatureCollection', features: [] });
             }
         }
 
@@ -1356,51 +1371,9 @@ map.on('load', () => {
     map.on('click', 'he-monuments-fill', (e) => showHeritagePopup(e, 'Scheduled Monument'));
     map.on('click', 'he-whs-fill', (e) => showHeritagePopup(e, 'World Heritage Site'));
     map.on('click', 'cadw-monuments-fill', showCadwPopup);
+    map.on('click', 'cadw-buildings-circle', showCadwBuildingPopup);
     map.on('click', 'he-buildings-circle', (e) => showHeritagePopup(e, 'Listed Building'));
     map.on('click', 'he-har-circle', showHarPopup);
-
-    // WMS GetFeatureInfo click handler for Cadw Listed Buildings
-    map.on('click', async (e) => {
-        if (!chkCadwBuildings?.checked) return;
-
-        // Skip if user clicked an existing vector point
-        const rendered = map.queryRenderedFeatures(e.point, {
-            layers: ['unclustered-point', 'he-buildings-circle', 'he-har-circle', 'clusters']
-        });
-        if (rendered.length > 0) return;
-
-        const canvas = map.getCanvas();
-        const bbox = map.getBounds();
-        const width = canvas.clientWidth;
-        const height = canvas.clientHeight;
-        const point = e.point;
-
-        const params = new URLSearchParams({
-            SERVICE: 'WMS',
-            VERSION: '1.3.0',
-            REQUEST: 'GetFeatureInfo',
-            LAYERS: 'inspire-wg:Cadw_ListedBuildings',
-            QUERY_LAYERS: 'inspire-wg:Cadw_ListedBuildings',
-            CRS: 'EPSG:4326',
-            BBOX: `${bbox.getSouth()},${bbox.getWest()},${bbox.getNorth()},${bbox.getEast()}`,
-            WIDTH: width.toString(),
-            HEIGHT: height.toString(),
-            I: Math.round(point.x).toString(),
-            J: Math.round(point.y).toString(),
-            INFO_FORMAT: 'application/json'
-        });
-
-        try {
-            const res = await fetch(`https://datamap.gov.wales/geoserver/ows?${params.toString()}`);
-            if (!res.ok) return;
-            const info = await res.json();
-            if (info.features && info.features.length > 0) {
-                showCadwBuildingPopup(e, info.features[0]);
-            }
-        } catch (err) {
-            console.warn('Cadw Listed Buildings GetFeatureInfo failed:', err);
-        }
-    });
 
     // Cluster Expansion Zoom
     map.on('click', 'clusters', async (e) => {
@@ -1424,6 +1397,7 @@ map.on('load', () => {
         'he-monuments-fill', 
         'he-whs-fill',
         'cadw-monuments-fill',
+        'cadw-buildings-circle',
         'he-buildings-circle', 
         'he-har-circle'
     ];
@@ -1544,21 +1518,17 @@ filterStatus?.addEventListener('change', () => {
 });
 
 // Checkbox change handlers
-[chkListedBuildings, chkScheduledMonuments, chkWorldHeritage, chkHeritageAtRisk, chkCadwMonuments].forEach(chk => {
+[
+    chkListedBuildings, 
+    chkScheduledMonuments, 
+    chkWorldHeritage, 
+    chkHeritageAtRisk, 
+    chkCadwMonuments,
+    chkCadwBuildings
+].forEach(chk => {
     chk?.addEventListener('change', () => {
         syncHeritageData();
     });
-});
-
-// Toggle Cadw Listed Buildings WMS Raster Layer
-chkCadwBuildings?.addEventListener('change', (e) => {
-    if (map.getLayer('cadw-buildings-wms-layer')) {
-        map.setLayoutProperty(
-            'cadw-buildings-wms-layer',
-            'visibility',
-            e.target.checked ? 'visible' : 'none'
-        );
-    }
 });
 
 filterRadius?.addEventListener('change', () => {
