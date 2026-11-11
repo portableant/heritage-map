@@ -21,8 +21,11 @@
     <!-- Typography -->
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=plus-jakarta-sans:400,500,600,700,800|inter:400,500,600,700|jet-brains-mono:400,500&display=swap" rel="stylesheet" />
+    
+    <!-- MapLibre GL Standalone UMD -->
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+
     <link rel="stylesheet" href="./src/css/app.css" />
 </head>
 <body class="h-full flex flex-col overflow-hidden bg-slate-100 text-slate-900 dark:bg-[#090d16] dark:text-[#f1f5f9] antialiased selection:bg-blue-600 selection:text-white">
@@ -144,18 +147,18 @@
                         <div id="proximity-status" class="hidden text-[10px] text-slate-500 dark:text-slate-400 font-mono" role="status" aria-live="polite"></div>
                     </div>
 
-                    <!-- Historic England Layers -->
+                    <!-- Designated Heritage Layers -->
                     <div class="p-3 bg-slate-50 dark:bg-slate-950/80 rounded-xl border border-slate-200 dark:border-slate-800/80 space-y-2">
                         <div class="flex items-center justify-between">
-                            <span class="text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-400">Historic England Layers</span>
+                            <span class="text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-400">Designated Heritage</span>
                             <span id="he-status" class="text-[10px] text-blue-600 dark:text-blue-400 font-mono"></span>
                         </div>
                         
                         <label class="flex items-center gap-2 cursor-pointer select-none">
-                            <input type="checkbox" id="layer-listed-buildings" class="rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-amber-600 focus:ring-amber-500">
+                            <input type="checkbox" id="layer-listed-buildings" class="rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-orange-600 focus:ring-orange-500">
                             <span class="text-xs text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
-                                <span class="w-2.5 h-2.5 rounded-sm bg-amber-500 inline-block" aria-hidden="true"></span>
-                                Listed Buildings
+                                <span class="w-2.5 h-2.5 rounded-sm bg-orange-600 inline-block" aria-hidden="true"></span>
+                                Listed Buildings (NHLE)
                             </span>
                         </label>
 
@@ -163,7 +166,7 @@
                             <input type="checkbox" id="layer-scheduled-monuments" class="rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-red-600 focus:ring-red-500">
                             <span class="text-xs text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
                                 <span class="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" aria-hidden="true"></span>
-                                Scheduled Monuments
+                                Scheduled Monuments (NHLE)
                             </span>
                         </label>
 
@@ -172,6 +175,22 @@
                             <span class="text-xs text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
                                 <span class="w-2.5 h-2.5 rounded-sm bg-emerald-600 inline-block" aria-hidden="true"></span>
                                 World Heritage Sites
+                            </span>
+                        </label>
+
+                        <label class="flex items-center gap-2 cursor-pointer select-none">
+                            <input type="checkbox" id="layer-cadw-buildings" class="rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-amber-700 focus:ring-amber-600">
+                            <span class="text-xs text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                                <span class="w-2.5 h-2.5 rounded-sm bg-amber-700 inline-block" aria-hidden="true"></span>
+                                Cadw Listed Buildings (Wales)
+                            </span>
+                        </label>
+
+                        <label class="flex items-center gap-2 cursor-pointer select-none">
+                            <input type="checkbox" id="layer-cadw-monuments" class="rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-rose-600 focus:ring-rose-500">
+                            <span class="text-xs text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                                <span class="w-2.5 h-2.5 rounded-full bg-rose-600 inline-block" aria-hidden="true"></span>
+                                Cadw Monuments (Wales)
                             </span>
                         </label>
 
@@ -269,22 +288,32 @@
 
                 <div class="flex items-center gap-1.5 border-l border-slate-200 dark:border-slate-700 pl-2">
                     <span class="w-2.5 h-2.5 rounded-sm bg-emerald-600 inline-block" aria-hidden="true"></span>
-                    <span>World Heritage Site</span>
+                    <span>World Heritage</span>
+                </div>
+
+                <div class="flex items-center gap-1.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" aria-hidden="true"></span>
+                    <span>NHLE Monument</span>
+                </div>
+
+                <div class="flex items-center gap-1.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-rose-600 inline-block" aria-hidden="true"></span>
+                    <span>Cadw Monument</span>
+                </div>
+
+                <div class="flex items-center gap-1.5">
+                    <span class="w-2.5 h-2.5 rounded-sm bg-orange-600 inline-block" aria-hidden="true"></span>
+                    <span>Listed Building (NHLE)</span>
+                </div>
+
+                <div class="flex items-center gap-1.5">
+                    <span class="w-2.5 h-2.5 rounded-sm bg-amber-700 inline-block" aria-hidden="true"></span>
+                    <span>Cadw Listed Building</span>
                 </div>
 
                 <div class="flex items-center gap-1.5">
                     <span class="w-2.5 h-2.5 rounded-full bg-purple-600 inline-block" aria-hidden="true"></span>
                     <span>At Risk (2026)</span>
-                </div>
-
-                <div class="flex items-center gap-1.5">
-                    <span class="w-2.5 h-2.5 rounded-sm bg-amber-500 inline-block" aria-hidden="true"></span>
-                    <span>Listed Building</span>
-                </div>
-
-                <div class="flex items-center gap-1.5">
-                    <span class="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" aria-hidden="true"></span>
-                    <span>Monument</span>
                 </div>
 
                 <div class="flex items-center gap-1.5 border-l border-slate-200 dark:border-slate-700 pl-2">
@@ -301,7 +330,7 @@
             <!-- Map Canvas -->
             <div id="map" 
                  role="region" 
-                 aria-label="Interactive Accredited Museums spatial map"
+                 aria-label="Interactive Heritage and Accredited Museums spatial map"
                  tabindex="0"
                  class="w-full h-full bg-slate-100 dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-600">
             </div>

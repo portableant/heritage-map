@@ -1,5 +1,4 @@
 const maplibregl = window.maplibregl;
-// Configure the worker to use the official CDN bundle
 
 // Base URL handling (resolves to '/' on heritage-map.museologi.st)
 const BASE_URL = import.meta.env.BASE_URL;
@@ -42,6 +41,7 @@ const customAttributionControl = new maplibregl.AttributionControl({
     compact: true,
     customAttribution: [
         '<a href="https://historicengland.org.uk/listing/the-list/" target="_blank" rel="noopener noreferrer">Contains NHLE & HAR data &copy; Historic England</a>',
+        '<a href="https://datamap.gov.wales/" target="_blank" rel="noopener noreferrer">Contains Cadw data &copy; Crown copyright (DataMapWales)</a>',
         '<a href="https://www.ordnancesurvey.co.uk/" target="_blank" rel="noopener noreferrer">Contains OS data &copy; Crown copyright &amp; database right</a>',
         '<a href="https://www.artscouncil.org.uk/supporting-arts-museums-and-libraries/uk-museum-accreditation-scheme" target="_blank" rel="noopener noreferrer">&copy; Arts Council England</a>'
     ]
@@ -84,6 +84,8 @@ const proximityStatus       = document.getElementById('proximity-status');
 const chkListedBuildings    = document.getElementById('layer-listed-buildings');
 const chkScheduledMonuments = document.getElementById('layer-scheduled-monuments');
 const chkWorldHeritage      = document.getElementById('layer-world-heritage');
+const chkCadwMonuments      = document.getElementById('layer-cadw-monuments');
+const chkCadwBuildings      = document.getElementById('layer-cadw-buildings');
 const chkHeritageAtRisk     = document.getElementById('layer-heritage-at-risk');
 const heStatusEl            = document.getElementById('he-status');
 
@@ -185,17 +187,19 @@ function computeGeoJSONBounds(geojson) {
 
 // Clear all active layers immediately
 function clearDynamicDataSources() {
-    const monSource = map.getSource('he-monuments-source');
-    const bldSource = map.getSource('he-buildings-source');
-    const whsSource = map.getSource('he-whs-source');
-    const harSource = map.getSource('he-har-source');
-    const musSource = map.getSource('museums-source');
+    const monSource  = map.getSource('he-monuments-source');
+    const whsSource  = map.getSource('he-whs-source');
+    const bldSource  = map.getSource('he-buildings-source');
+    const harSource  = map.getSource('he-har-source');
+    const cadwSource = map.getSource('cadw-monuments-source');
+    const musSource  = map.getSource('museums-source');
     
-    if (monSource) monSource.setData({ type: 'FeatureCollection', features: [] });
-    if (bldSource) bldSource.setData({ type: 'FeatureCollection', features: [] });
-    if (whsSource) whsSource.setData({ type: 'FeatureCollection', features: [] });
-    if (harSource) harSource.setData({ type: 'FeatureCollection', features: [] });
-    if (musSource) musSource.setData({ type: 'FeatureCollection', features: [] });
+    if (monSource)  monSource.setData({ type: 'FeatureCollection', features: [] });
+    if (whsSource)  whsSource.setData({ type: 'FeatureCollection', features: [] });
+    if (bldSource)  bldSource.setData({ type: 'FeatureCollection', features: [] });
+    if (harSource)  harSource.setData({ type: 'FeatureCollection', features: [] });
+    if (cadwSource) cadwSource.setData({ type: 'FeatureCollection', features: [] });
+    if (musSource)  musSource.setData({ type: 'FeatureCollection', features: [] });
 }
 
 // 1. County Boundary Loader
@@ -229,8 +233,15 @@ async function loadCountyBoundary(osId, fitToBoundary = true) {
     try {
         let data = boundaryGeoJsonCache[`county_${osId}`];
         if (!data) {
-            const response = await fetch(`${BASE_URL}os_geo_json/${encodeURIComponent(osId)}.geojson`);
-            if (!response.ok) throw new Error(`County GeoJSON not found: ${osId}`);
+            const url = `${BASE_URL}os_geo_json/${encodeURIComponent(osId)}.geojson`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`HTTP ${response.status} loading ${url}`);
+
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('text/html')) {
+                throw new Error(`Expected GeoJSON but server returned HTML at: ${url}`);
+            }
+
             data = await response.json();
             boundaryGeoJsonCache[`county_${osId}`] = data;
         }
@@ -245,7 +256,7 @@ async function loadCountyBoundary(osId, fitToBoundary = true) {
             syncHeritageData();
         }
     } catch (err) {
-        console.warn('Unable to load County GeoJSON boundary:', err);
+        console.warn('Unable to load County GeoJSON boundary:', err.message);
         activeBoundaryBounds = null;
         source.setData({ type: 'FeatureCollection', features: [] });
         if (activeBoundaryBadge) activeBoundaryBadge.classList.add('hidden');
@@ -285,8 +296,15 @@ async function loadRegionBoundary(osId, fitToBoundary = true) {
     try {
         let data = boundaryGeoJsonCache[`region_${osId}`];
         if (!data) {
-            const response = await fetch(`${BASE_URL}os_geo_json/${encodeURIComponent(osId)}.geojson`);
-            if (!response.ok) throw new Error(`Region GeoJSON not found: ${osId}`);
+            const url = `${BASE_URL}os_geo_json/${encodeURIComponent(osId)}.geojson`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`HTTP ${response.status} loading ${url}`);
+
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('text/html')) {
+                throw new Error(`Expected GeoJSON but server returned HTML at: ${url}`);
+            }
+
             data = await response.json();
             boundaryGeoJsonCache[`region_${osId}`] = data;
         }
@@ -301,7 +319,7 @@ async function loadRegionBoundary(osId, fitToBoundary = true) {
             syncHeritageData();
         }
     } catch (err) {
-        console.warn('Unable to load Region GeoJSON boundary:', err);
+        console.warn('Unable to load Region GeoJSON boundary:', err.message);
         activeBoundaryBounds = null;
         source.setData({ type: 'FeatureCollection', features: [] });
         if (activeBoundaryBadge) activeBoundaryBadge.classList.add('hidden');
@@ -388,6 +406,9 @@ function syncPalette() {
     }
     if (map.getLayer('he-whs-fill')) {
         map.setPaintProperty('he-whs-fill', 'fill-color', dark ? '#059669' : '#10b981');
+    }
+    if (map.getLayer('cadw-monuments-fill')) {
+        map.setPaintProperty('cadw-monuments-fill', 'fill-color', dark ? '#f43f5e' : '#e11d48');
     }
     if (map.getLayer('county-boundary-fill')) {
         map.setPaintProperty('county-boundary-fill', 'fill-color', dark ? '#6366f1' : '#4f46e5');
@@ -522,7 +543,33 @@ function addLayers() {
         });
     }
 
-    // 6. Historic England Listed Buildings (Points)
+    // 6. Cadw Scheduled Monuments (Wales - WFS GeoJSON)
+    if (!map.getSource('cadw-monuments-source')) {
+        map.addSource('cadw-monuments-source', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] }
+        });
+        map.addLayer({
+            id: 'cadw-monuments-fill',
+            type: 'fill',
+            source: 'cadw-monuments-source',
+            paint: {
+                'fill-color': dark ? '#f43f5e' : '#e11d48',
+                'fill-opacity': 0.45
+            }
+        });
+        map.addLayer({
+            id: 'cadw-monuments-stroke',
+            type: 'line',
+            source: 'cadw-monuments-source',
+            paint: {
+                'line-color': dark ? '#fb7185' : '#be123c',
+                'line-width': 2
+            }
+        });
+    }
+
+    // 7. Historic England Listed Buildings (Points) - Rust/Terracotta #ea580c
     if (!map.getSource('he-buildings-source')) {
         map.addSource('he-buildings-source', {
             type: 'geojson',
@@ -533,7 +580,7 @@ function addLayers() {
             type: 'circle',
             source: 'he-buildings-source',
             paint: {
-                'circle-color': '#f59e0b',
+                'circle-color': '#ea580c',
                 'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 2, 14, 5.5],
                 'circle-stroke-width': 1.25,
                 'circle-stroke-color': '#ffffff'
@@ -541,7 +588,39 @@ function addLayers() {
         });
     }
 
-    // 7. Historic England Heritage at Risk 2026 (Points)
+    // 8. Cadw Listed Buildings (Wales - WMS Layer from layer/660)
+    if (!map.getSource('cadw-buildings-wms-source')) {
+        map.addSource('cadw-buildings-wms-source', {
+            type: 'raster',
+            tiles: [
+                'https://datamap.gov.wales/geoserver/ows?' +
+                'SERVICE=WMS&' +
+                'VERSION=1.3.0&' +
+                'REQUEST=GetMap&' +
+                'LAYERS=inspire-wg:Cadw_ListedBuildings&' +
+                'CRS=EPSG:3857&' +
+                'BBOX={bbox-epsg-3857}&' +
+                'WIDTH=256&' +
+                'HEIGHT=256&' +
+                'FORMAT=image/png&' +
+                'TRANSPARENT=true'
+            ],
+            tileSize: 256
+        });
+        map.addLayer({
+            id: 'cadw-buildings-wms-layer',
+            type: 'raster',
+            source: 'cadw-buildings-wms-source',
+            layout: {
+                visibility: 'none' // Controlled by checkbox
+            },
+            paint: {
+                'raster-opacity': 0.95
+            }
+        });
+    }
+
+    // 9. Historic England Heritage at Risk 2026 (Points)
     if (!map.getSource('he-har-source')) {
         map.addSource('he-har-source', {
             type: 'geojson',
@@ -560,7 +639,7 @@ function addLayers() {
         });
     }
 
-    // 8. Museums Layers
+    // 10. Museums Layers
     if (!map.getSource('museums-source')) {
         map.addSource('museums-source', {
             type: 'geojson',
@@ -707,7 +786,7 @@ const showHeritagePopup = (e, designation) => {
     const parish = p.Parish || p.PARISH || p.CivilParish || null;
     const ngr = p.NationalGridReference || p.NGR || p.GridRef || null;
 
-    let badgeClass = 'bg-amber-100 dark:bg-amber-950/70 text-amber-700 dark:text-amber-400';
+    let badgeClass = 'bg-orange-100 dark:bg-orange-950/70 text-orange-700 dark:text-orange-400';
     if (designation === 'Scheduled Monument') {
         badgeClass = 'bg-red-100 dark:bg-red-950/70 text-red-700 dark:text-red-400';
     } else if (designation === 'World Heritage Site') {
@@ -764,13 +843,146 @@ const showHeritagePopup = (e, designation) => {
         .addTo(map);
 };
 
+// Dedicated Popup for Cadw Scheduled Monuments (Wales)
+const showCadwPopup = (e) => {
+    const feature = e.features[0];
+    if (!feature) return;
+
+    const p = feature.properties || {};
+    const name = p.Name || p.Name_cy || 'Cadw Scheduled Monument';
+    const nameCy = p.Name_cy && p.Name_cy !== p.Name ? p.Name_cy : null;
+    const samNumber = p.SAMNumber || p.RecordNumber || '—';
+    const broadClass = p.BroadClass || 'Monument';
+    const period = p.Period || null;
+    const authority = p.UnitaryAuthority || p.Community || null;
+
+    if (activePopup) activePopup.remove();
+
+    activePopup = new maplibregl.Popup({ offset: 10 })
+        .setLngLat(e.lngLat)
+        .setHTML(`
+            <div class="w-72 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 overflow-hidden font-sans" role="dialog">
+                <div class="px-4 pt-3.5 pb-2.5 pr-8 border-b border-slate-100 dark:border-slate-800/80 bg-rose-50/70 dark:bg-rose-950/30 flex items-start justify-between gap-2">
+                    <div class="pr-2">
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase bg-rose-100 dark:bg-rose-950/70 text-rose-700 dark:text-rose-400">
+                            Cadw Scheduled Monument
+                        </span>
+                        <h4 class="mt-1.5 text-xs font-bold leading-snug line-clamp-2 text-slate-900 dark:text-slate-100">
+                            ${name}
+                        </h4>
+                        ${nameCy ? `<div class="text-[11px] italic text-slate-500 dark:text-slate-400">${nameCy}</div>` : ''}
+                    </div>
+                </div>
+
+                <div class="p-3.5 space-y-1.5 text-xs">
+                    <div class="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
+                        <span class="text-slate-500 dark:text-slate-400">SAM Number:</span>
+                        <span class="font-mono font-medium text-slate-800 dark:text-slate-200">${samNumber}</span>
+                    </div>
+                    <div class="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
+                        <span class="text-slate-500 dark:text-slate-400">Class:</span>
+                        <span class="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[150px]">${broadClass}</span>
+                    </div>
+                    ${period ? `
+                    <div class="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
+                        <span class="text-slate-500 dark:text-slate-400">Period:</span>
+                        <span class="font-medium text-slate-800 dark:text-slate-200">${period}</span>
+                    </div>` : ''}
+                    ${authority ? `
+                    <div class="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
+                        <span class="text-slate-500 dark:text-slate-400">Authority:</span>
+                        <span class="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[130px]">${authority}</span>
+                    </div>` : ''}
+                </div>
+
+                <div class="px-3.5 py-2.5 bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-800/80 flex justify-between items-center text-[11px]">
+                    <span class="text-slate-400 dark:text-slate-500">&copy; Cadw / DataMapWales</span>
+                    <a href="https://cadw.gov.wales/advice-support/cof-cymru/search-cadw-records" target="_blank" rel="noopener noreferrer" 
+                       class="inline-flex items-center gap-1 font-semibold text-rose-600 dark:text-rose-400 hover:underline">
+                        <span>Cof Cymru</span>
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        `)
+        .addTo(map);
+};
+
+// Dedicated Popup for Cadw Listed Buildings (Wales - WMS GetFeatureInfo)
+const showCadwBuildingPopup = (e, feature) => {
+    const p = feature.properties || {};
+    const name = p.Name || p.Name_cy || 'Cadw Listed Building';
+    const nameCy = p.Name_cy && p.Name_cy !== p.Name ? p.Name_cy : null;
+    const recordNumber = p.RecordNumber || p.record_number || '—';
+    const grade = p.Grade || 'II';
+    const location = p.Location || null;
+    const broadClass = p.BroadClass || null;
+    const authority = p.UnitaryAuthority || p.Community || null;
+    const reportUrl = p.Report || 'https://cadw.gov.wales/advice-support/cof-cymru/search-cadw-records';
+
+    if (activePopup) activePopup.remove();
+
+    activePopup = new maplibregl.Popup({ offset: 10 })
+        .setLngLat(e.lngLat)
+        .setHTML(`
+            <div class="w-72 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 overflow-hidden font-sans" role="dialog">
+                <div class="px-4 pt-3.5 pb-2.5 pr-8 border-b border-slate-100 dark:border-slate-800/80 bg-amber-50/70 dark:bg-amber-950/30 flex items-start justify-between gap-2">
+                    <div class="pr-2">
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300">
+                            Cadw Listed Building (${grade})
+                        </span>
+                        <h4 class="mt-1.5 text-xs font-bold leading-snug line-clamp-2 text-slate-900 dark:text-slate-100">
+                            ${name}
+                        </h4>
+                        ${nameCy ? `<div class="text-[11px] italic text-slate-500 dark:text-slate-400">${nameCy}</div>` : ''}
+                    </div>
+                </div>
+
+                <div class="p-3.5 space-y-1.5 text-xs">
+                    <div class="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
+                        <span class="text-slate-500 dark:text-slate-400">Record No:</span>
+                        <span class="font-mono font-medium text-slate-800 dark:text-slate-200">${recordNumber}</span>
+                    </div>
+                    ${location ? `
+                    <div class="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
+                        <span class="text-slate-500 dark:text-slate-400">Location:</span>
+                        <span class="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[150px]">${location}</span>
+                    </div>` : ''}
+                    ${broadClass ? `
+                    <div class="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
+                        <span class="text-slate-500 dark:text-slate-400">Class:</span>
+                        <span class="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[150px]">${broadClass}</span>
+                    </div>` : ''}
+                    ${authority ? `
+                    <div class="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
+                        <span class="text-slate-500 dark:text-slate-400">Authority:</span>
+                        <span class="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[130px]">${authority}</span>
+                    </div>` : ''}
+                </div>
+
+                <div class="px-3.5 py-2.5 bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-800/80 flex justify-between items-center text-[11px]">
+                    <span class="text-slate-400 dark:text-slate-500">&copy; Cadw / DataMapWales</span>
+                    <a href="${reportUrl}" target="_blank" rel="noopener noreferrer" 
+                       class="inline-flex items-center gap-1 font-semibold text-amber-700 dark:text-amber-400 hover:underline">
+                        <span>Cadw Report</span>
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        `)
+        .addTo(map);
+};
+
 // Dedicated Popup for Heritage at Risk (HAR 2026 OTHR)
 const showHarPopup = (e) => {
     const feature = e.features[0];
     if (!feature) return;
 
     const p = feature.properties || {};
-
     const entryName   = p.EntryName || p['Entry Name'] || p.SiteName || 'Heritage at Risk Site';
     const listEntry   = p.List_Entry || p.ListEntry || p['List Entry Number'] || null;
     const category    = p.HeritageCa || p['Heritage Category'] || 'Heritage Asset';
@@ -850,25 +1062,28 @@ const showHarPopup = (e) => {
         .addTo(map);
 };
 
-// Historic England Query Engine
+// Dynamic Heritage Layer Query Engine
 async function syncHeritageData() {
-    const monSource = map.getSource('he-monuments-source');
-    const whsSource = map.getSource('he-whs-source');
-    const bldSource = map.getSource('he-buildings-source');
-    const harSource = map.getSource('he-har-source');
+    const monSource  = map.getSource('he-monuments-source');
+    const whsSource  = map.getSource('he-whs-source');
+    const bldSource  = map.getSource('he-buildings-source');
+    const harSource  = map.getSource('he-har-source');
+    const cadwSource = map.getSource('cadw-monuments-source');
     if (!monSource || !whsSource || !bldSource || !harSource) return;
 
     const wantBuildings = chkListedBuildings?.checked;
     const wantMonuments = chkScheduledMonuments?.checked;
     const wantWHS       = chkWorldHeritage?.checked;
     const wantHAR       = chkHeritageAtRisk?.checked;
+    const wantCadw      = chkCadwMonuments?.checked;
 
     if (!wantBuildings) bldSource.setData({ type: 'FeatureCollection', features: [] });
     if (!wantMonuments) monSource.setData({ type: 'FeatureCollection', features: [] });
     if (!wantWHS) whsSource.setData({ type: 'FeatureCollection', features: [] });
     if (!wantHAR) harSource.setData({ type: 'FeatureCollection', features: [] });
+    if (!wantCadw && cadwSource) cadwSource.setData({ type: 'FeatureCollection', features: [] });
 
-    if (!wantBuildings && !wantMonuments && !wantWHS && !wantHAR) {
+    if (!wantBuildings && !wantMonuments && !wantWHS && !wantHAR && !wantCadw) {
         if (heStatusEl) heStatusEl.textContent = '';
         return;
     }
@@ -879,7 +1094,7 @@ async function syncHeritageData() {
     activeHeritageAbortController = new AbortController();
     const signal = activeHeritageAbortController.signal;
 
-    if (heStatusEl) heStatusEl.textContent = 'Updating HE layers...';
+    if (heStatusEl) heStatusEl.textContent = 'Updating heritage layers...';
 
     // Prioritise current active boundary constraints if loaded, else use viewport bounds
     let queryBounds = map.getBounds();
@@ -887,11 +1102,16 @@ async function syncHeritageData() {
         queryBounds = activeBoundaryBounds;
     }
 
+    const minLng = queryBounds.getWest();
+    const minLat = queryBounds.getSouth();
+    const maxLng = queryBounds.getEast();
+    const maxLat = queryBounds.getNorth();
+
     const envelopeObj = {
-        xmin: queryBounds.getWest(),
-        ymin: queryBounds.getSouth(),
-        xmax: queryBounds.getEast(),
-        ymax: queryBounds.getNorth(),
+        xmin: minLng,
+        ymin: minLat,
+        xmax: maxLng,
+        ymax: maxLat,
         spatialReference: { wkid: 4326 }
     };
 
@@ -914,6 +1134,23 @@ async function syncHeritageData() {
         return await res.json();
     };
 
+    const fetchCadwWFS = async () => {
+        const wfsParams = new URLSearchParams({
+            service: 'WFS',
+            version: '1.1.0',
+            request: 'GetFeature',
+            typename: 'inspire-wg:Cadw_SAM',
+            outputFormat: 'application/json',
+            srsName: 'EPSG:4326',
+            bbox: `${minLng},${minLat},${maxLng},${maxLat},EPSG:4326`,
+            maxFeatures: '2000'
+        });
+
+        const res = await fetch(`https://datamap.gov.wales/geoserver/ows?${wfsParams.toString()}`, { signal });
+        if (!res.ok) throw new Error(`WFS HTTP ${res.status}`);
+        return await res.json();
+    };
+
     try {
         let total = 0;
         const promises = [];
@@ -922,12 +1159,7 @@ async function syncHeritageData() {
         if (wantMonuments) {
             promises.push(
                 fetchEsriGeoJSON('https://services-eu1.arcgis.com/ZOdPfBS3aqqDYPUQ/arcgis/rest/services/National_Heritage_List_for_England_NHLE_v02_VIEW/FeatureServer/6')
-                    .then(monData => {
-                        if (monData?.features) {
-                            monSource.setData(monData);
-                            total += monData.features.length;
-                        }
-                    })
+                    .then(data => { if (data?.features) { monSource.setData(data); total += data.features.length; } })
             );
         }
 
@@ -935,46 +1167,48 @@ async function syncHeritageData() {
         if (wantWHS) {
             promises.push(
                 fetchEsriGeoJSON('https://services-eu1.arcgis.com/ZOdPfBS3aqqDYPUQ/arcgis/rest/services/National_Heritage_List_for_England_NHLE_v02_VIEW/FeatureServer/10')
-                    .then(whsData => {
-                        if (whsData?.features) {
-                            whsSource.setData(whsData);
-                            total += whsData.features.length;
-                        }
-                    })
+                    .then(data => { if (data?.features) { whsSource.setData(data); total += data.features.length; } })
             );
         }
 
-        // 3. Listed Buildings (Points)
+        // 3. Listed Buildings (Points - Rust/Terracotta)
         if (wantBuildings) {
             promises.push(
                 fetchEsriGeoJSON('https://services-eu1.arcgis.com/ZOdPfBS3aqqDYPUQ/arcgis/rest/services/National_Heritage_List_for_England_NHLE_v02_VIEW/FeatureServer/0')
-                    .then(bldData => {
-                        if (bldData?.features) {
-                            bldSource.setData(bldData);
-                            total += bldData.features.length;
-                        }
-                    })
+                    .then(data => { if (data?.features) { bldSource.setData(data); total += data.features.length; } })
             );
         }
 
-        // 4. Heritage at Risk 2026
+        // 4. Heritage at Risk 2026 (Points)
         if (wantHAR) {
             promises.push(
                 fetchEsriGeoJSON('https://services-eu1.arcgis.com/ZOdPfBS3aqqDYPUQ/arcgis/rest/services/HAR_2026_OTHR_WGS84/FeatureServer/0')
-                    .then(harData => {
-                        if (harData?.features) {
-                            harSource.setData(harData);
-                            total += harData.features.length;
-                        }
-                    })
+                    .then(data => { if (data?.features) { harSource.setData(data); total += data.features.length; } })
             );
         }
 
+        // 5. Cadw Scheduled Monuments (Wales - WFS)
+        if (wantCadw && cadwSource) {
+            const intersectsWales = (minLng <= -2.6 && maxLng >= -5.5 && minLat <= 53.5 && maxLat >= 51.3);
+            if (intersectsWales) {
+                promises.push(
+                    fetchCadwWFS().then(data => {
+                        if (data?.features) {
+                            cadwSource.setData(data);
+                            total += data.features.length;
+                        }
+                    })
+                );
+            } else {
+                cadwSource.setData({ type: 'FeatureCollection', features: [] });
+            }
+        }
+
         await Promise.all(promises);
-        if (heStatusEl) heStatusEl.textContent = `${total} HE records in view`;
+        if (heStatusEl) heStatusEl.textContent = `${total} records in view`;
     } catch (err) {
         if (err.name !== 'AbortError') {
-            console.warn('Historic England query notice:', err);
+            console.warn('Heritage spatial query notice:', err);
             if (heStatusEl) heStatusEl.textContent = 'Unavailable';
         }
     }
@@ -1016,7 +1250,6 @@ function populateFilterDropdowns(features) {
         filterStatus?.appendChild(opt);
     });
 
-    // Sort counties alphabetically
     Array.from(counties.entries())
         .sort((a, b) => a[1].localeCompare(b[1]))
         .forEach(([id, label]) => {
@@ -1027,7 +1260,6 @@ function populateFilterDropdowns(features) {
             filterCounty?.appendChild(opt);
         });
 
-    // Sort regions alphabetically
     Array.from(regions.entries())
         .sort((a, b) => a[1].localeCompare(b[1]))
         .forEach(([id, label]) => {
@@ -1123,8 +1355,52 @@ map.on('load', () => {
     map.on('click', 'unclustered-hitbox', showMuseumPopup);
     map.on('click', 'he-monuments-fill', (e) => showHeritagePopup(e, 'Scheduled Monument'));
     map.on('click', 'he-whs-fill', (e) => showHeritagePopup(e, 'World Heritage Site'));
+    map.on('click', 'cadw-monuments-fill', showCadwPopup);
     map.on('click', 'he-buildings-circle', (e) => showHeritagePopup(e, 'Listed Building'));
     map.on('click', 'he-har-circle', showHarPopup);
+
+    // WMS GetFeatureInfo click handler for Cadw Listed Buildings
+    map.on('click', async (e) => {
+        if (!chkCadwBuildings?.checked) return;
+
+        // Skip if user clicked an existing vector point
+        const rendered = map.queryRenderedFeatures(e.point, {
+            layers: ['unclustered-point', 'he-buildings-circle', 'he-har-circle', 'clusters']
+        });
+        if (rendered.length > 0) return;
+
+        const canvas = map.getCanvas();
+        const bbox = map.getBounds();
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        const point = e.point;
+
+        const params = new URLSearchParams({
+            SERVICE: 'WMS',
+            VERSION: '1.3.0',
+            REQUEST: 'GetFeatureInfo',
+            LAYERS: 'inspire-wg:Cadw_ListedBuildings',
+            QUERY_LAYERS: 'inspire-wg:Cadw_ListedBuildings',
+            CRS: 'EPSG:4326',
+            BBOX: `${bbox.getSouth()},${bbox.getWest()},${bbox.getNorth()},${bbox.getEast()}`,
+            WIDTH: width.toString(),
+            HEIGHT: height.toString(),
+            I: Math.round(point.x).toString(),
+            J: Math.round(point.y).toString(),
+            INFO_FORMAT: 'application/json'
+        });
+
+        try {
+            const res = await fetch(`https://datamap.gov.wales/geoserver/ows?${params.toString()}`);
+            if (!res.ok) return;
+            const info = await res.json();
+            if (info.features && info.features.length > 0) {
+                showCadwBuildingPopup(e, info.features[0]);
+            }
+        } catch (err) {
+            console.warn('Cadw Listed Buildings GetFeatureInfo failed:', err);
+        }
+    });
 
     // Cluster Expansion Zoom
     map.on('click', 'clusters', async (e) => {
@@ -1147,6 +1423,7 @@ map.on('load', () => {
         'unclustered-hitbox', 
         'he-monuments-fill', 
         'he-whs-fill',
+        'cadw-monuments-fill',
         'he-buildings-circle', 
         'he-har-circle'
     ];
@@ -1234,7 +1511,6 @@ filterCounty?.addEventListener('change', () => {
         activeHeritageAbortController.abort();
     }
 
-    // Reset region boundary if county is selected
     if (filterRegion && filterCounty.value) {
         filterRegion.value = '';
         const regionSource = map.getSource('region-boundary-source');
@@ -1252,7 +1528,6 @@ filterRegion?.addEventListener('change', () => {
         activeHeritageAbortController.abort();
     }
 
-    // Reset county boundary if region is selected
     if (filterCounty && filterRegion.value) {
         filterCounty.value = '';
         const countySource = map.getSource('county-boundary-source');
@@ -1268,10 +1543,22 @@ filterStatus?.addEventListener('change', () => {
     scheduleFetch(100);
 });
 
-[chkListedBuildings, chkScheduledMonuments, chkWorldHeritage, chkHeritageAtRisk].forEach(chk => {
+// Checkbox change handlers
+[chkListedBuildings, chkScheduledMonuments, chkWorldHeritage, chkHeritageAtRisk, chkCadwMonuments].forEach(chk => {
     chk?.addEventListener('change', () => {
         syncHeritageData();
     });
+});
+
+// Toggle Cadw Listed Buildings WMS Raster Layer
+chkCadwBuildings?.addEventListener('change', (e) => {
+    if (map.getLayer('cadw-buildings-wms-layer')) {
+        map.setLayoutProperty(
+            'cadw-buildings-wms-layer',
+            'visibility',
+            e.target.checked ? 'visible' : 'none'
+        );
+    }
 });
 
 filterRadius?.addEventListener('change', () => {
