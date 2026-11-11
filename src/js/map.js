@@ -4,6 +4,7 @@ const maplibregl = window.maplibregl;
 const BASE_URL = import.meta.env.BASE_URL;
 const heLogoUrl = `${BASE_URL}images/Historic_England.svg`;
 const cadwLogoUrl = `${BASE_URL}images/Cadw_logo_square.svg`;
+const cofeLogoUrl = `${BASE_URL}images/3_CofELogo_RGB_Web.png`;
 
 function isDarkMode() {
     return document.documentElement.classList.contains('dark');
@@ -42,6 +43,7 @@ const customAttributionControl = new maplibregl.AttributionControl({
     compact: true,
     customAttribution: [
         '<a href="https://historicengland.org.uk/listing/the-list/" target="_blank" rel="noopener noreferrer">Contains NHLE & HAR data &copy; Historic England</a>',
+        '<a href="https://www.churchofengland.org/" target="_blank" rel="noopener noreferrer">&copy; Church of England Church Commissioners</a>',
         '<a href="https://datamap.gov.wales/" target="_blank" rel="noopener noreferrer">Contains Cadw data &copy; Crown copyright (DataMapWales)</a>',
         '<a href="https://www.ordnancesurvey.co.uk/" target="_blank" rel="noopener noreferrer">Contains OS data &copy; Crown copyright &amp; database right</a>',
         '<a href="https://www.artscouncil.org.uk/supporting-arts-museums-and-libraries/uk-museum-accreditation-scheme" target="_blank" rel="noopener noreferrer">&copy; Arts Council England</a>'
@@ -85,6 +87,7 @@ const proximityStatus       = document.getElementById('proximity-status');
 const chkListedBuildings    = document.getElementById('layer-listed-buildings');
 const chkScheduledMonuments = document.getElementById('layer-scheduled-monuments');
 const chkWorldHeritage      = document.getElementById('layer-world-heritage');
+const chkCofeChurches       = document.getElementById('layer-cofe-churches');
 const chkCadwMonuments      = document.getElementById('layer-cadw-monuments');
 const chkCadwBuildings      = document.getElementById('layer-cadw-buildings');
 const chkHeritageAtRisk     = document.getElementById('layer-heritage-at-risk');
@@ -186,12 +189,13 @@ function computeGeoJSONBounds(geojson) {
     return bounds;
 }
 
-// Clear all active layers immediately
+// Clear all active dynamic data layers
 function clearDynamicDataSources() {
     const monSource     = map.getSource('he-monuments-source');
     const whsSource     = map.getSource('he-whs-source');
     const bldSource     = map.getSource('he-buildings-source');
     const harSource     = map.getSource('he-har-source');
+    const cofeSource    = map.getSource('cofe-churches-source');
     const cadwMonSource = map.getSource('cadw-monuments-source');
     const cadwBldSource = map.getSource('cadw-buildings-source');
     const musSource     = map.getSource('museums-source');
@@ -200,6 +204,7 @@ function clearDynamicDataSources() {
     if (whsSource)     whsSource.setData({ type: 'FeatureCollection', features: [] });
     if (bldSource)     bldSource.setData({ type: 'FeatureCollection', features: [] });
     if (harSource)     harSource.setData({ type: 'FeatureCollection', features: [] });
+    if (cofeSource)    cofeSource.setData({ type: 'FeatureCollection', features: [] });
     if (cadwMonSource) cadwMonSource.setData({ type: 'FeatureCollection', features: [] });
     if (cadwBldSource) cadwBldSource.setData({ type: 'FeatureCollection', features: [] });
     if (musSource)     musSource.setData({ type: 'FeatureCollection', features: [] });
@@ -410,6 +415,12 @@ function syncPalette() {
     if (map.getLayer('he-whs-fill')) {
         map.setPaintProperty('he-whs-fill', 'fill-color', dark ? '#059669' : '#10b981');
     }
+    if (map.getLayer('cofe-churches-fill')) {
+        map.setPaintProperty('cofe-churches-fill', 'fill-color', dark ? '#818cf8' : '#4f46e5');
+    }
+    if (map.getLayer('cofe-churches-stroke')) {
+        map.setPaintProperty('cofe-churches-stroke', 'line-color', dark ? '#a5b4fc' : '#3730a3');
+    }
     if (map.getLayer('cadw-monuments-fill')) {
         map.setPaintProperty('cadw-monuments-fill', 'fill-color', dark ? '#f43f5e' : '#e11d48');
     }
@@ -506,7 +517,33 @@ function addLayers() {
         });
     }
 
-    // 4. Historic England Scheduled Monuments (Polygons)
+    // 4. Church of England Active Churches (Polygons - Building Footprints & Curtilage)
+    if (!map.getSource('cofe-churches-source')) {
+        map.addSource('cofe-churches-source', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] }
+        });
+        map.addLayer({
+            id: 'cofe-churches-fill',
+            type: 'fill',
+            source: 'cofe-churches-source',
+            paint: {
+                'fill-color': dark ? '#818cf8' : '#4f46e5',
+                'fill-opacity': 0.35
+            }
+        });
+        map.addLayer({
+            id: 'cofe-churches-stroke',
+            type: 'line',
+            source: 'cofe-churches-source',
+            paint: {
+                'line-color': dark ? '#a5b4fc' : '#3730a3',
+                'line-width': 1.5
+            }
+        });
+    }
+
+    // 5. Historic England Scheduled Monuments (Polygons)
     if (!map.getSource('he-monuments-source')) {
         map.addSource('he-monuments-source', {
             type: 'geojson',
@@ -526,7 +563,7 @@ function addLayers() {
         });
     }
 
-    // 5. Historic England World Heritage Sites (Polygons - FeatureServer/10)
+    // 6. Historic England World Heritage Sites (Polygons - FeatureServer/10)
     if (!map.getSource('he-whs-source')) {
         map.addSource('he-whs-source', {
             type: 'geojson',
@@ -546,7 +583,7 @@ function addLayers() {
         });
     }
 
-    // 6. Cadw Scheduled Monuments (Wales - WFS GeoJSON)
+    // 7. Cadw Scheduled Monuments (Wales - WFS GeoJSON)
     if (!map.getSource('cadw-monuments-source')) {
         map.addSource('cadw-monuments-source', {
             type: 'geojson',
@@ -572,7 +609,7 @@ function addLayers() {
         });
     }
 
-    // 7. Historic England Listed Buildings (Points) - Rust/Terracotta #ea580c
+    // 8. Historic England Listed Buildings (Points) - Rust/Terracotta #ea580c
     if (!map.getSource('he-buildings-source')) {
         map.addSource('he-buildings-source', {
             type: 'geojson',
@@ -591,7 +628,7 @@ function addLayers() {
         });
     }
 
-    // 8. Cadw Listed Buildings (Wales - WFS GeoJSON Points) - Warm Amber/Brown #b45309
+    // 9. Cadw Listed Buildings (Wales - WFS GeoJSON Points) - Warm Amber/Brown #b45309
     if (!map.getSource('cadw-buildings-source')) {
         map.addSource('cadw-buildings-source', {
             type: 'geojson',
@@ -610,7 +647,7 @@ function addLayers() {
         });
     }
 
-    // 9. Historic England Heritage at Risk 2026 (Points)
+    // 10. Historic England Heritage at Risk 2026 (Points)
     if (!map.getSource('he-har-source')) {
         map.addSource('he-har-source', {
             type: 'geojson',
@@ -629,7 +666,7 @@ function addLayers() {
         });
     }
 
-    // 10. Museums Layers
+    // 11. Museums Layers
     if (!map.getSource('museums-source')) {
         map.addSource('museums-source', {
             type: 'geojson',
@@ -828,6 +865,76 @@ const showHeritagePopup = (e, designation) => {
                         </svg>
                     </a>
                 </div>` : ''}
+            </div>
+        `)
+        .addTo(map);
+};
+
+// Dedicated Popup for Church of England Active Churches
+const showCofeChurchPopup = (e) => {
+    const feature = e.features[0];
+    if (!feature) return;
+
+    const p = feature.properties || {};
+
+    // Map exact ArcGIS FeatureServer field names
+    const churchName = p.Church_Name || p.ChurchName || p.church_name || 'Active Church of England Church';
+    const grade      = p.Listed_building__Grade_ || p.ListedGrade || p.Grade || null;
+    const parishName = p.Parish_Name || p.ParishName || p.parish_name || null;
+    const diocese    = p.Diocese_Name || p.Diocese || p.diocese_name || null;
+
+    // Optional link out if ChurchCode or WebLink is present in the record
+    const churchCode    = p.Church_Code || p.ChurchCode || null;
+    const churchNearYou = p.WebLink || (churchCode ? `https://www.achurchnearyou.com/church/${churchCode}/` : 'https://www.achurchnearyou.com/');
+
+    if (activePopup) activePopup.remove();
+
+    activePopup = new maplibregl.Popup({ offset: 10 })
+        .setLngLat(e.lngLat)
+        .setHTML(`
+            <div class="w-72 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 overflow-hidden font-sans" role="dialog">
+                <div class="px-4 pt-3.5 pb-2.5 pr-8 border-b border-slate-100 dark:border-slate-800/80 bg-indigo-50/70 dark:bg-indigo-950/30 flex items-start justify-between gap-2">
+                    <div class="pr-2">
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase bg-indigo-100 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300">
+                            C of E Active Church ${grade ? `(${grade})` : ''}
+                        </span>
+                        <h4 class="mt-1.5 text-xs font-bold leading-snug line-clamp-2 text-slate-900 dark:text-slate-100">
+                            ${churchName}
+                        </h4>
+                    </div>
+                    <img src="${cofeLogoUrl}" alt="Church of England" class="h-6 w-auto shrink-0 object-contain mt-0.5 mr-2 rounded-sm" />
+                </div>
+
+                <div class="p-3.5 space-y-1.5 text-xs">
+                    ${grade ? `
+                    <div class="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
+                        <span class="text-slate-500 dark:text-slate-400">Listing Grade:</span>
+                        <span class="font-medium text-slate-800 dark:text-slate-200">${grade}</span>
+                    </div>` : ''}
+
+                    ${parishName ? `
+                    <div class="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
+                        <span class="text-slate-500 dark:text-slate-400">Parish:</span>
+                        <span class="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[150px]">${parishName}</span>
+                    </div>` : ''}
+
+                    ${diocese ? `
+                    <div class="flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800/60">
+                        <span class="text-slate-500 dark:text-slate-400">Diocese:</span>
+                        <span class="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[150px]">${diocese}</span>
+                    </div>` : ''}
+                </div>
+
+                <div class="px-3.5 py-2.5 bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-800/80 flex justify-between items-center text-[11px]">
+                    <span class="text-slate-400 dark:text-slate-500">&copy; Church Commissioners</span>
+                    <a href="${churchNearYou}" target="_blank" rel="noopener noreferrer" 
+                       class="inline-flex items-center gap-1 font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
+                        <span>A Church Near You</span>
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                    </a>
+                </div>
             </div>
         `)
         .addTo(map);
@@ -1063,6 +1170,7 @@ async function syncHeritageData() {
     const whsSource     = map.getSource('he-whs-source');
     const bldSource     = map.getSource('he-buildings-source');
     const harSource     = map.getSource('he-har-source');
+    const cofeSource    = map.getSource('cofe-churches-source');
     const cadwMonSource = map.getSource('cadw-monuments-source');
     const cadwBldSource = map.getSource('cadw-buildings-source');
     if (!monSource || !whsSource || !bldSource || !harSource) return;
@@ -1071,6 +1179,7 @@ async function syncHeritageData() {
     const wantMonuments     = chkScheduledMonuments?.checked;
     const wantWHS           = chkWorldHeritage?.checked;
     const wantHAR           = chkHeritageAtRisk?.checked;
+    const wantCofe          = chkCofeChurches?.checked;
     const wantCadwMonuments = chkCadwMonuments?.checked;
     const wantCadwBuildings = chkCadwBuildings?.checked;
 
@@ -1078,10 +1187,11 @@ async function syncHeritageData() {
     if (!wantMonuments)     monSource.setData({ type: 'FeatureCollection', features: [] });
     if (!wantWHS)           whsSource.setData({ type: 'FeatureCollection', features: [] });
     if (!wantHAR)           harSource.setData({ type: 'FeatureCollection', features: [] });
+    if (!wantCofe && cofeSource) cofeSource.setData({ type: 'FeatureCollection', features: [] });
     if (!wantCadwMonuments && cadwMonSource) cadwMonSource.setData({ type: 'FeatureCollection', features: [] });
     if (!wantCadwBuildings && cadwBldSource) cadwBldSource.setData({ type: 'FeatureCollection', features: [] });
 
-    if (!wantBuildings && !wantMonuments && !wantWHS && !wantHAR && !wantCadwMonuments && !wantCadwBuildings) {
+    if (!wantBuildings && !wantMonuments && !wantWHS && !wantHAR && !wantCofe && !wantCadwMonuments && !wantCadwBuildings) {
         if (heStatusEl) heStatusEl.textContent = '';
         return;
     }
@@ -1169,7 +1279,15 @@ async function syncHeritageData() {
             );
         }
 
-        // 3. Listed Buildings (Points - NHLE, Rust/Terracotta)
+        // 3. Church of England Active Churches (Polygons - FeatureServer/0)
+        if (wantCofe && cofeSource) {
+            promises.push(
+                fetchEsriGeoJSON('https://services5.arcgis.com/KDRjxGRQDVgVtFTS/ArcGIS/rest/services/Active_churches_polygon_data/FeatureServer/0')
+                    .then(data => { if (data?.features) { cofeSource.setData(data); total += data.features.length; } })
+            );
+        }
+
+        // 4. Listed Buildings (Points - NHLE, Rust/Terracotta)
         if (wantBuildings) {
             promises.push(
                 fetchEsriGeoJSON('https://services-eu1.arcgis.com/ZOdPfBS3aqqDYPUQ/arcgis/rest/services/National_Heritage_List_for_England_NHLE_v02_VIEW/FeatureServer/0')
@@ -1177,7 +1295,7 @@ async function syncHeritageData() {
             );
         }
 
-        // 4. Heritage at Risk 2026 (Points)
+        // 5. Heritage at Risk 2026 (Points)
         if (wantHAR) {
             promises.push(
                 fetchEsriGeoJSON('https://services-eu1.arcgis.com/ZOdPfBS3aqqDYPUQ/arcgis/rest/services/HAR_2026_OTHR_WGS84/FeatureServer/0')
@@ -1185,7 +1303,7 @@ async function syncHeritageData() {
             );
         }
 
-        // 5. Cadw Scheduled Monuments (Wales - WFS GeoJSON)
+        // 6. Cadw Scheduled Monuments (Wales - WFS GeoJSON)
         if (wantCadwMonuments && cadwMonSource) {
             const intersectsWales = (minLng <= -2.6 && maxLng >= -5.5 && minLat <= 53.5 && maxLat >= 51.3);
             if (intersectsWales) {
@@ -1202,7 +1320,7 @@ async function syncHeritageData() {
             }
         }
 
-        // 6. Cadw Listed Buildings (Wales - WFS GeoJSON Points)
+        // 7. Cadw Listed Buildings (Wales - WFS GeoJSON Points)
         if (wantCadwBuildings && cadwBldSource) {
             const intersectsWales = (minLng <= -2.6 && maxLng >= -5.5 && minLat <= 53.5 && maxLat >= 51.3);
             if (intersectsWales) {
@@ -1370,6 +1488,7 @@ map.on('load', () => {
     map.on('click', 'unclustered-hitbox', showMuseumPopup);
     map.on('click', 'he-monuments-fill', (e) => showHeritagePopup(e, 'Scheduled Monument'));
     map.on('click', 'he-whs-fill', (e) => showHeritagePopup(e, 'World Heritage Site'));
+    map.on('click', 'cofe-churches-fill', showCofeChurchPopup);
     map.on('click', 'cadw-monuments-fill', showCadwPopup);
     map.on('click', 'cadw-buildings-circle', showCadwBuildingPopup);
     map.on('click', 'he-buildings-circle', (e) => showHeritagePopup(e, 'Listed Building'));
@@ -1396,6 +1515,7 @@ map.on('load', () => {
         'unclustered-hitbox', 
         'he-monuments-fill', 
         'he-whs-fill',
+        'cofe-churches-fill',
         'cadw-monuments-fill',
         'cadw-buildings-circle',
         'he-buildings-circle', 
@@ -1522,6 +1642,7 @@ filterStatus?.addEventListener('change', () => {
     chkListedBuildings, 
     chkScheduledMonuments, 
     chkWorldHeritage, 
+    chkCofeChurches,
     chkHeritageAtRisk, 
     chkCadwMonuments,
     chkCadwBuildings
